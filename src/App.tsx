@@ -8,6 +8,9 @@ import SignUp from "./pages/SignUp";
 import SignIn from "./pages/SignIn";
 import ProfileSetup from "./pages/ProfileSetup";
 import Dashboard from "./pages/Dashboard";
+import Counseling from "./pages/Counseling";
+import CounselingSession from "./pages/CounselingSession";
+import Profile from "./pages/Profile";
 import SOS from "./pages/SOS";
 import NotFound from "./pages/NotFound";
 
@@ -25,13 +28,15 @@ const App = () => (
           <Route path="/signin" element={<SignIn />} />
           <Route path="/profile-setup" element={<ProfileSetup />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/counseling" element={<Counseling />} />
+          <Route path="/counseling/session" element={<CounselingSession />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="/sos" element={<SOS />} />
           
-          {/* Placeholder routes for bottom nav - will be implemented in Phase 2-4 */}
+          {/* Placeholder routes for bottom nav - will be implemented in Phase 3-4 */}
           <Route path="/safety-monitor" element={<Navigate to="/dashboard" replace />} />
           <Route path="/learning" element={<Navigate to="/dashboard" replace />} />
           <Route path="/community" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
           
           {/* Catch-all route */}
           <Route path="*" element={<NotFound />} />
