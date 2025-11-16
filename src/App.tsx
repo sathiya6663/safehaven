@@ -2,8 +2,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Welcome from "./pages/Welcome";
+import SignUp from "./pages/SignUp";
+import SignIn from "./pages/SignIn";
+import ProfileSetup from "./pages/ProfileSetup";
+import Dashboard from "./pages/Dashboard";
+import SOS from "./pages/SOS";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -15,8 +20,20 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/" element={<Welcome />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/signin" element={<SignIn />} />
+          <Route path="/profile-setup" element={<ProfileSetup />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/sos" element={<SOS />} />
+          
+          {/* Placeholder routes for bottom nav - will be implemented in Phase 2-4 */}
+          <Route path="/safety-monitor" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/learning" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/community" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
+          
+          {/* Catch-all route */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
