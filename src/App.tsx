@@ -12,6 +12,10 @@ import Counseling from "./pages/Counseling";
 import CounselingSession from "./pages/CounselingSession";
 import Profile from "./pages/Profile";
 import SOS from "./pages/SOS";
+import SafetyMonitor from "./pages/SafetyMonitor";
+import Emergency from "./pages/Emergency";
+import EvidenceVault from "./pages/EvidenceVault";
+import Tracking from "./pages/Tracking";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,8 +37,13 @@ const App = () => (
           <Route path="/profile" element={<Profile />} />
           <Route path="/sos" element={<SOS />} />
           
-          {/* Placeholder routes for bottom nav - will be implemented in Phase 3-4 */}
-          <Route path="/safety-monitor" element={<Navigate to="/dashboard" replace />} />
+          {/* Phase 3: Safety Tools & Emergency Features */}
+          <Route path="/safety-monitor" element={<SafetyMonitor />} />
+          <Route path="/emergency" element={<Emergency />} />
+          <Route path="/evidence-vault" element={<EvidenceVault />} />
+          <Route path="/tracking" element={<Tracking />} />
+          
+          {/* Placeholder routes for Phase 4 */}
           <Route path="/learning" element={<Navigate to="/dashboard" replace />} />
           <Route path="/community" element={<Navigate to="/dashboard" replace />} />
           
