@@ -16,6 +16,13 @@ import SafetyMonitor from "./pages/SafetyMonitor";
 import Emergency from "./pages/Emergency";
 import EvidenceVault from "./pages/EvidenceVault";
 import Tracking from "./pages/Tracking";
+import Learning from "./pages/Learning";
+import LearningStory from "./pages/LearningStory";
+import LearningQuiz from "./pages/LearningQuiz";
+import Legal from "./pages/Legal";
+import Community from "./pages/Community";
+import GuardianDashboard from "./pages/GuardianDashboard";
+import Help from "./pages/Help";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,9 +50,14 @@ const App = () => (
           <Route path="/evidence-vault" element={<EvidenceVault />} />
           <Route path="/tracking" element={<Tracking />} />
           
-          {/* Placeholder routes for Phase 4 */}
-          <Route path="/learning" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/community" element={<Navigate to="/dashboard" replace />} />
+          {/* Phase 4: Community & Advanced Features */}
+          <Route path="/learning" element={<Learning />} />
+          <Route path="/learning/story/:id" element={<LearningStory />} />
+          <Route path="/learning/quiz/:id" element={<LearningQuiz />} />
+          <Route path="/legal" element={<Legal />} />
+          <Route path="/community" element={<Community />} />
+          <Route path="/guardian-dashboard" element={<GuardianDashboard />} />
+          <Route path="/help" element={<Help />} />
           
           {/* Catch-all route */}
           <Route path="*" element={<NotFound />} />
