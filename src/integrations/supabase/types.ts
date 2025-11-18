@@ -14,7 +14,117 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      emergency_contacts: {
+        Row: {
+          contact_email: string | null
+          contact_name: string
+          contact_phone: string
+          created_at: string | null
+          id: string
+          is_primary: boolean | null
+          relationship: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          contact_email?: string | null
+          contact_name: string
+          contact_phone: string
+          created_at?: string | null
+          id?: string
+          is_primary?: boolean | null
+          relationship: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          contact_email?: string | null
+          contact_name?: string
+          contact_phone?: string
+          created_at?: string | null
+          id?: string
+          is_primary?: boolean | null
+          relationship?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      guardian_child_links: {
+        Row: {
+          approved_at: string | null
+          child_id: string
+          created_at: string | null
+          guardian_id: string
+          id: string
+          permissions: Json | null
+          status: string
+        }
+        Insert: {
+          approved_at?: string | null
+          child_id: string
+          created_at?: string | null
+          guardian_id: string
+          id?: string
+          permissions?: Json | null
+          status?: string
+        }
+        Update: {
+          approved_at?: string | null
+          child_id?: string
+          created_at?: string | null
+          guardian_id?: string
+          id?: string
+          permissions?: Json | null
+          status?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string | null
+          date_of_birth: string | null
+          email: string
+          full_name: string | null
+          id: string
+          location: string | null
+          phone_number: string | null
+          updated_at: string | null
+          user_id: string
+          user_type: Database["public"]["Enums"]["user_type"]
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          date_of_birth?: string | null
+          email: string
+          full_name?: string | null
+          id?: string
+          location?: string | null
+          phone_number?: string | null
+          updated_at?: string | null
+          user_id: string
+          user_type: Database["public"]["Enums"]["user_type"]
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          date_of_birth?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          location?: string | null
+          phone_number?: string | null
+          updated_at?: string | null
+          user_id?: string
+          user_type?: Database["public"]["Enums"]["user_type"]
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +133,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      user_type: "woman" | "child" | "guardian"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +260,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      user_type: ["woman", "child", "guardian"],
+    },
   },
 } as const
