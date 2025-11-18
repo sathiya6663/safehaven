@@ -8,22 +8,69 @@ import { Header } from "@/components/layout/Header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Camera, User } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { useProfile } from "@/hooks/useProfile";
+import { useEmergencyContacts } from "@/hooks/useEmergencyContacts";
+import { toast } from "sonner";
 
 export default function ProfileSetup() {
   const navigate = useNavigate();
+  const { profile, updateProfile, uploadAvatar } = useProfile();
+  const { addContact } = useEmergencyContacts();
+  const [saving, setSaving] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     displayName: "",
     bio: "",
     phone: "",
     guardianEmail: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    emergencyContactRelationship: "",
     enableNotifications: true,
     shareLocation: false,
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAvatarFile(file);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Save profile data in Phase 6
-    navigate("/dashboard");
+    setSaving(true);
+
+    try {
+      // Upload avatar if selected
+      if (avatarFile) {
+        await uploadAvatar(avatarFile);
+      }
+
+      // Update profile
+      await updateProfile({
+        full_name: formData.displayName,
+        bio: formData.bio,
+        phone_number: formData.phone,
+      });
+
+      // Add emergency contact if provided
+      if (formData.emergencyContactName && formData.emergencyContactPhone) {
+        await addContact({
+          contact_name: formData.emergencyContactName,
+          contact_phone: formData.emergencyContactPhone,
+          relationship: formData.emergencyContactRelationship || "Emergency Contact",
+          is_primary: true,
+        });
+      }
+
+      toast.success("Profile setup completed!");
+      navigate("/dashboard");
+    } catch (error) {
+      toast.error("Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -41,21 +88,24 @@ export default function ProfileSetup() {
           <div className="flex flex-col items-center gap-3">
             <div className="relative">
               <Avatar className="h-24 w-24">
-                <AvatarImage src="" />
+                <AvatarImage src={avatarFile ? URL.createObjectURL(avatarFile) : profile?.avatar_url || ""} />
                 <AvatarFallback className="bg-primary/10">
                   <User className="h-12 w-12 text-primary" />
                 </AvatarFallback>
               </Avatar>
-              <button
-                type="button"
-                className="absolute bottom-0 right-0 p-2 rounded-full bg-primary text-primary-foreground shadow-medium"
-                onClick={() => {
-                  // TODO: Implement photo upload in Phase 6
-                  console.log("Upload photo");
-                }}
+              <label
+                htmlFor="avatar-upload"
+                className="absolute bottom-0 right-0 p-2 rounded-full bg-primary text-primary-foreground shadow-medium cursor-pointer hover:bg-primary/90"
               >
                 <Camera className="h-4 w-4" />
-              </button>
+                <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                />
+              </label>
             </div>
             <p className="text-sm text-muted-foreground">Add profile photo (optional)</p>
           </div>
@@ -96,19 +146,40 @@ export default function ProfileSetup() {
             />
           </div>
 
-          {/* Guardian Email (for children) */}
-          <div className="space-y-2">
-            <Label htmlFor="guardianEmail">Guardian Email (If under 18)</Label>
-            <Input
-              id="guardianEmail"
-              type="email"
-              placeholder="guardian@email.com"
-              value={formData.guardianEmail}
-              onChange={(e) => setFormData({ ...formData, guardianEmail: e.target.value })}
-            />
-            <p className="text-xs text-muted-foreground">
-              We'll send an invitation to link your accounts
-            </p>
+          {/* Emergency Contact */}
+          <div className="space-y-4 pt-4 border-t">
+            <h3 className="font-heading font-semibold">Emergency Contact</h3>
+            
+            <div className="space-y-2">
+              <Label htmlFor="emergencyContactName">Contact Name</Label>
+              <Input
+                id="emergencyContactName"
+                placeholder="Full name"
+                value={formData.emergencyContactName}
+                onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="emergencyContactPhone">Contact Phone</Label>
+              <Input
+                id="emergencyContactPhone"
+                type="tel"
+                placeholder="+1 (555) 000-0000"
+                value={formData.emergencyContactPhone}
+                onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="emergencyContactRelationship">Relationship</Label>
+              <Input
+                id="emergencyContactRelationship"
+                placeholder="e.g., Parent, Sibling, Friend"
+                value={formData.emergencyContactRelationship}
+                onChange={(e) => setFormData({ ...formData, emergencyContactRelationship: e.target.value })}
+              />
+            </div>
           </div>
 
           {/* Safety Preferences */}
@@ -155,11 +226,12 @@ export default function ProfileSetup() {
               variant="outline"
               className="flex-1"
               onClick={() => navigate("/dashboard")}
+              disabled={saving}
             >
               Skip for Now
             </Button>
-            <Button type="submit" className="flex-1">
-              Complete Setup
+            <Button type="submit" className="flex-1" disabled={saving}>
+              {saving ? "Saving..." : "Complete Setup"}
             </Button>
           </div>
         </form>
