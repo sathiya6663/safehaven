@@ -2,7 +2,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import Welcome from "./pages/Welcome";
 import SignUp from "./pages/SignUp";
 import SignIn from "./pages/SignIn";
@@ -33,35 +35,37 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Welcome />} />
-          <Route path="/signup" element={<SignUp />} />
-          <Route path="/signin" element={<SignIn />} />
-          <Route path="/profile-setup" element={<ProfileSetup />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/counseling" element={<Counseling />} />
-          <Route path="/counseling/session" element={<CounselingSession />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/sos" element={<SOS />} />
-          
-          {/* Phase 3: Safety Tools & Emergency Features */}
-          <Route path="/safety-monitor" element={<SafetyMonitor />} />
-          <Route path="/emergency" element={<Emergency />} />
-          <Route path="/evidence-vault" element={<EvidenceVault />} />
-          <Route path="/tracking" element={<Tracking />} />
-          
-          {/* Phase 4: Community & Advanced Features */}
-          <Route path="/learning" element={<Learning />} />
-          <Route path="/learning/story/:id" element={<LearningStory />} />
-          <Route path="/learning/quiz/:id" element={<LearningQuiz />} />
-          <Route path="/legal" element={<Legal />} />
-          <Route path="/community" element={<Community />} />
-          <Route path="/guardian-dashboard" element={<GuardianDashboard />} />
-          <Route path="/help" element={<Help />} />
-          
-          {/* Catch-all route */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<Welcome />} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/signin" element={<SignIn />} />
+            <Route path="/sos" element={<SOS />} />
+            <Route path="/help" element={<Help />} />
+            <Route path="/profile-setup" element={<ProtectedRoute><ProfileSetup /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/counseling" element={<ProtectedRoute><Counseling /></ProtectedRoute>} />
+            <Route path="/counseling/session" element={<ProtectedRoute><CounselingSession /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            
+            {/* Phase 3: Safety Tools & Emergency Features */}
+            <Route path="/safety-monitor" element={<ProtectedRoute><SafetyMonitor /></ProtectedRoute>} />
+            <Route path="/emergency" element={<ProtectedRoute><Emergency /></ProtectedRoute>} />
+            <Route path="/evidence-vault" element={<ProtectedRoute><EvidenceVault /></ProtectedRoute>} />
+            <Route path="/tracking" element={<ProtectedRoute><Tracking /></ProtectedRoute>} />
+            
+            {/* Phase 4: Community & Advanced Features */}
+            <Route path="/learning" element={<ProtectedRoute><Learning /></ProtectedRoute>} />
+            <Route path="/learning/story/:id" element={<ProtectedRoute><LearningStory /></ProtectedRoute>} />
+            <Route path="/learning/quiz/:id" element={<ProtectedRoute><LearningQuiz /></ProtectedRoute>} />
+            <Route path="/legal" element={<ProtectedRoute><Legal /></ProtectedRoute>} />
+            <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
+            <Route path="/guardian-dashboard" element={<ProtectedRoute allowedTypes={['guardian']}><GuardianDashboard /></ProtectedRoute>} />
+            
+            {/* Catch-all route */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

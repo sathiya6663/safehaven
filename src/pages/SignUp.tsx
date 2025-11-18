@@ -8,20 +8,28 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Header } from "@/components/layout/Header";
 import { User, Baby, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 type UserType = "woman" | "child" | "guardian";
 
 export default function SignUp() {
   const navigate = useNavigate();
+  const { signUp, user } = useAuth();
   const [userType, setUserType] = useState<UserType | null>(null);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     confirmPassword: "",
     age: "",
-    emergencyContact: "",
     agreedToTerms: false,
   });
+  const [loading, setLoading] = useState(false);
+
+  // Redirect if already logged in
+  if (user) {
+    navigate("/dashboard");
+  }
 
   const userTypes = [
     { id: "woman" as UserType, label: "Woman", icon: User, description: "18+ years" },
@@ -29,10 +37,57 @@ export default function SignUp() {
     { id: "guardian" as UserType, label: "Guardian", icon: Users, description: "Parent/Caregiver" },
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement actual signup logic in Phase 5
-    navigate("/profile-setup");
+
+    if (!userType) {
+      toast.error("Please select an account type");
+      return;
+    }
+
+    if (!formData.agreedToTerms) {
+      toast.error("Please accept the terms and conditions");
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
+    // Age verification
+    const age = parseInt(formData.age);
+    if (isNaN(age) || age < 8) {
+      toast.error("You must be at least 8 years old");
+      return;
+    }
+
+    if (userType === 'child' && age >= 18) {
+      toast.error("Child accounts are for users under 18");
+      return;
+    }
+
+    if ((userType === 'woman' || userType === 'guardian') && age < 18) {
+      toast.error("You must be 18 or older for this account type");
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await signUp(formData.email, formData.password, userType);
+
+    if (error) {
+      toast.error(error.message || "Failed to create account");
+      setLoading(false);
+      return;
+    }
+
+    toast.success("Account created! Please check your email to verify.");
+    setLoading(false);
   };
 
   return (
@@ -134,18 +189,6 @@ export default function SignUp() {
               value={formData.confirmPassword}
               onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
               required
-            />
-          </div>
-
-          {/* Emergency Contact */}
-          <div className="space-y-2">
-            <Label htmlFor="emergencyContact">Emergency Contact (Optional)</Label>
-            <Input
-              id="emergencyContact"
-              type="tel"
-              placeholder="Phone number"
-              value={formData.emergencyContact}
-              onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
             />
           </div>
 
