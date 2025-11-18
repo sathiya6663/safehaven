@@ -7,19 +7,60 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Header } from "@/components/layout/Header";
 import { AlertCircle } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export default function SignIn() {
   const navigate = useNavigate();
+  const { signIn, resetPassword, user } = useAuth();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     rememberMe: false,
   });
+  const [resetEmail, setResetEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // TODO: Implement actual signin logic in Phase 5
+  // Redirect if already logged in
+  if (user) {
     navigate("/dashboard");
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const { error } = await signIn(formData.email, formData.password);
+
+    if (error) {
+      toast.error(error.message || "Failed to sign in");
+      setLoading(false);
+      return;
+    }
+
+    toast.success("Welcome back!");
+    setLoading(false);
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetLoading(true);
+
+    const { error } = await resetPassword(resetEmail);
+
+    if (error) {
+      toast.error(error.message || "Failed to send reset email");
+      setResetLoading(false);
+      return;
+    }
+
+    toast.success("Password reset email sent! Check your inbox.");
+    setShowResetDialog(false);
+    setResetEmail("");
+    setResetLoading(false);
   };
 
   return (
@@ -50,16 +91,40 @@ export default function SignIn() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="password">Password</Label>
-              <button
-                type="button"
-                className="text-sm text-primary hover:underline"
-                onClick={() => {
-                  // TODO: Implement forgot password in Phase 5
-                  console.log("Forgot password");
-                }}
-              >
-                Forgot password?
-              </button>
+              <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+                <DialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Reset Password</DialogTitle>
+                    <DialogDescription>
+                      Enter your email address and we'll send you a link to reset your password.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleResetPassword} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="reset-email">Email</Label>
+                      <Input
+                        id="reset-email"
+                        type="email"
+                        placeholder="your@email.com"
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={resetLoading}>
+                      {resetLoading ? "Sending..." : "Send Reset Link"}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </div>
             <Input
               id="password"
@@ -86,8 +151,8 @@ export default function SignIn() {
           </div>
 
           {/* Submit Button */}
-          <Button type="submit" className="w-full" size="lg">
-            Sign In
+          <Button type="submit" className="w-full" size="lg" disabled={loading}>
+            {loading ? "Signing In..." : "Sign In"}
           </Button>
 
           {/* Emergency Access */}
@@ -104,10 +169,7 @@ export default function SignIn() {
                   variant="outline"
                   size="sm"
                   className="border-emergency/50 text-emergency hover:bg-emergency/10"
-                  onClick={() => {
-                    // TODO: Implement emergency access in Phase 5
-                    console.log("Emergency access");
-                  }}
+                  onClick={() => navigate("/sos")}
                 >
                   Emergency Access
                 </Button>
