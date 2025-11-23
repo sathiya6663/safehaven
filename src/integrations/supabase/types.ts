@@ -92,6 +92,13 @@ export type Database = {
             referencedRelation: "community_posts"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "community_messages_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       community_posts: {
@@ -531,9 +538,57 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      community_posts_safe: {
+        Row: {
+          category: string | null
+          content: string | null
+          created_at: string | null
+          id: string | null
+          is_anonymous: boolean | null
+          is_moderated: boolean | null
+          likes_count: number | null
+          moderation_status: string | null
+          replies_count: number | null
+          tags: string[] | null
+          title: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          content?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_anonymous?: boolean | null
+          is_moderated?: boolean | null
+          likes_count?: number | null
+          moderation_status?: string | null
+          replies_count?: number | null
+          tags?: string[] | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: never
+        }
+        Update: {
+          category?: string | null
+          content?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_anonymous?: boolean | null
+          is_moderated?: boolean | null
+          likes_count?: number | null
+          moderation_status?: string | null
+          replies_count?: number | null
+          tags?: string[] | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: never
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      anonymize_old_counseling_sessions: { Args: never; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
