@@ -4,9 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { AlertCircle, Send, X, Heart, Brain, Lightbulb } from "lucide-react";
+import { AlertCircle, Send, X, Heart, Brain, Lightbulb, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAICounseling } from "@/hooks/useAICounseling";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Message = {
   role: "user" | "assistant";
@@ -16,6 +30,10 @@ type Message = {
 
 export default function CounselingSession() {
   const navigate = useNavigate();
+  const { user, userType } = useAuth();
+  const { streamChat, isLoading, crisisDetected } = useAICounseling(userType || 'woman');
+  const { toast } = useToast();
+  
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -26,7 +44,14 @@ export default function CounselingSession() {
   const [input, setInput] = useState("");
   const [emotionalState, setEmotionalState] = useState<"calm" | "anxious" | "stressed" | "happy">("calm");
   const [sessionTime, setSessionTime] = useState(0);
+  const [showCrisisDialog, setShowCrisisDialog] = useState(false);
+  const [copingStrategies, setCopingStrategies] = useState([
+    { icon: Heart, title: "Deep Breathing", description: "Try 4-7-8 breathing technique" },
+    { icon: Brain, title: "Mindfulness", description: "Focus on present moment" },
+    { icon: Lightbulb, title: "Positive Affirmation", description: "You are capable and strong" },
+  ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sessionIdRef = useRef<string | null>(null);
 
   // Session timer
   useEffect(() => {
@@ -50,8 +75,89 @@ export default function CounselingSession() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  // Initialize session
+  useEffect(() => {
+    const initSession = async () => {
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('counseling_sessions')
+        .insert({
+          user_id: user.id,
+          session_date: new Date().toISOString(),
+          emotional_state: emotionalState,
+        })
+        .select()
+        .single();
+
+      if (!error && data) {
+        sessionIdRef.current = data.id;
+      }
+
+      // Load AI-generated coping strategies
+      loadCopingStrategies();
+    };
+
+    initSession();
+  }, [user]);
+
+  // Save session when unmounting
+  useEffect(() => {
+    return () => {
+      if (sessionIdRef.current && user) {
+        supabase
+          .from('counseling_sessions')
+          .update({
+            duration_minutes: Math.floor(sessionTime / 60),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', sessionIdRef.current)
+          .then(() => console.log('Session saved'));
+      }
+    };
+  }, [sessionTime, user]);
+
+  // Check for crisis detection
+  useEffect(() => {
+    if (crisisDetected) {
+      setShowCrisisDialog(true);
+    }
+  }, [crisisDetected]);
+
+  const loadCopingStrategies = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-coping-strategies', {
+        body: {
+          emotionalState,
+          userType: userType || 'woman',
+          recentTopics: messages
+            .filter(m => m.role === 'user')
+            .slice(-3)
+            .map(m => m.content),
+        },
+      });
+
+      if (!error && data && data.length > 0) {
+        const iconMap: Record<string, any> = {
+          heart: Heart,
+          brain: Brain,
+          lightbulb: Lightbulb,
+        };
+
+        setCopingStrategies(
+          data.map((s: any) => ({
+            ...s,
+            icon: iconMap[s.icon] || Lightbulb,
+          }))
+        );
+      }
+    } catch (error) {
+      console.error('Failed to load coping strategies:', error);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
 
     const userMessage: Message = {
       role: "user",
@@ -62,16 +168,38 @@ export default function CounselingSession() {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
 
-    // TODO: Connect to AI in Phase 7
-    // Simulate AI response
-    setTimeout(() => {
-      const aiMessage: Message = {
-        role: "assistant",
-        content: "I hear you. That sounds challenging. Can you tell me more about what you're experiencing?",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, aiMessage]);
-    }, 1000);
+    let assistantSoFar = "";
+    const upsertAssistant = (nextChunk: string) => {
+      assistantSoFar += nextChunk;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant") {
+          return prev.map((m, i) =>
+            i === prev.length - 1 ? { ...m, content: assistantSoFar } : m
+          );
+        }
+        return [...prev, { role: "assistant", content: assistantSoFar, timestamp: new Date() }];
+      });
+    };
+
+    try {
+      await streamChat({
+        messages: [...messages, userMessage],
+        emotionalState,
+        onDelta: (chunk) => upsertAssistant(chunk),
+        onDone: () => {
+          // Reload coping strategies after conversation
+          loadCopingStrategies();
+        },
+      });
+    } catch (e) {
+      console.error('Chat error:', e);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCrisisEscalation = () => {
@@ -80,13 +208,39 @@ export default function CounselingSession() {
     }
   };
 
-  const copingStrategies = [
-    { icon: Heart, title: "Deep Breathing", description: "Try 4-7-8 breathing technique" },
-    { icon: Brain, title: "Mindfulness", description: "Focus on present moment" },
-    { icon: Lightbulb, title: "Positive Affirmation", description: "You are capable and strong" },
-  ];
-
   return (
+    <>
+      {/* Crisis Detection Dialog */}
+      <AlertDialog open={showCrisisDialog} onOpenChange={setShowCrisisDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-emergency" />
+              Crisis Support Available
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                I detected that you might be in distress. You don't have to face this alone.
+              </p>
+              <p className="font-medium">
+                Would you like to activate emergency support services now?
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continue Chatting</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-emergency hover:bg-emergency/90"
+              onClick={() => {
+                setShowCrisisDialog(false);
+                navigate('/sos');
+              }}
+            >
+              Get Emergency Help
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-background border-b">
@@ -218,8 +372,12 @@ export default function CounselingSession() {
               placeholder="Share what's on your mind..."
               className="flex-1"
             />
-            <Button onClick={handleSend} disabled={!input.trim()}>
-              <Send className="h-4 w-4" />
+            <Button onClick={handleSend} disabled={!input.trim() || isLoading}>
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground mt-2 text-center">
@@ -228,5 +386,6 @@ export default function CounselingSession() {
         </div>
       </div>
     </div>
+    </>
   );
 }
