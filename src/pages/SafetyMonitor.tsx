@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { Header } from "@/components/layout/Header";
 import { BottomTabBar } from "@/components/layout/BottomTabBar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,24 +9,79 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, AlertTriangle, CheckCircle, Settings, Eye, EyeOff, TrendingUp } from "lucide-react";
+import { Shield, Settings, Eye, EyeOff, TrendingUp, RefreshCw } from "lucide-react";
+import { SafetyAlertsList } from "@/components/SafetyAlertsList";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSafetyAlerts } from "@/hooks/useSafetyAlerts";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SafetyMonitor() {
+  const { user } = useAuth();
+  const { alerts, loading, refetch } = useSafetyAlerts();
+  const { toast } = useToast();
+  
   const [monitoringEnabled, setMonitoringEnabled] = useState(true);
   const [guardianVisibility, setGuardianVisibility] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
-  const safetyScore = 85;
+  // Auto-refresh alerts every 30 seconds if enabled
+  useEffect(() => {
+    if (autoRefresh) {
+      const interval = setInterval(() => {
+        refetch();
+      }, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [autoRefresh, refetch]);
+
+  // Calculate safety score based on recent alerts
+  const calculateSafetyScore = () => {
+    if (!alerts || alerts.length === 0) return 95;
+    
+    const recentAlerts = alerts.filter(
+      (a) => new Date(a.created_at!).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000
+    );
+    
+    const criticalCount = recentAlerts.filter((a) => a.severity === 'critical').length;
+    const highCount = recentAlerts.filter((a) => a.severity === 'high').length;
+    const mediumCount = recentAlerts.filter((a) => a.severity === 'medium').length;
+    
+    const score = Math.max(
+      20,
+      100 - (criticalCount * 20 + highCount * 10 + mediumCount * 5)
+    );
+    
+    return score;
+  };
+
+  const safetyScore = calculateSafetyScore();
   
-  const alerts = [
-    { id: 1, type: "warning", message: "Suspicious message detected in chat", time: "2 hours ago", severity: "medium" },
-    { id: 2, type: "blocked", message: "Inappropriate content blocked", time: "5 hours ago", severity: "high" },
-    { id: 3, type: "info", message: "New safety check completed", time: "1 day ago", severity: "low" },
-  ];
-
   const blockedContent = {
-    today: 3,
-    thisWeek: 12,
-    thisMonth: 45,
+    today: alerts?.filter(
+      (a) =>
+        (a.metadata as any)?.actionRequired === 'block' &&
+        new Date(a.created_at!).toDateString() === new Date().toDateString()
+    ).length || 0,
+    thisWeek: alerts?.filter(
+      (a) =>
+        (a.metadata as any)?.actionRequired === 'block' &&
+        new Date(a.created_at!).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000
+    ).length || 0,
+    thisMonth: alerts?.filter(
+      (a) =>
+        (a.metadata as any)?.actionRequired === 'block' &&
+        new Date(a.created_at!).getTime() > Date.now() - 30 * 24 * 60 * 60 * 1000
+    ).length || 0,
+  };
+
+  const handleToggleMonitoring = (enabled: boolean) => {
+    setMonitoringEnabled(enabled);
+    toast({
+      title: enabled ? "Monitoring Enabled" : "Monitoring Disabled",
+      description: enabled
+        ? "AI safety monitoring is now active"
+        : "AI safety monitoring has been paused",
+    });
   };
 
   return (
@@ -36,11 +92,23 @@ export default function SafetyMonitor() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-heading font-bold">Safety Monitor</h1>
-            <p className="text-muted-foreground">Real-time protection and alerts</p>
+            <p className="text-muted-foreground">Real-time AI-powered protection</p>
           </div>
-          <Button variant="outline" size="icon">
-            <Settings className="h-5 w-5" />
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => {
+                refetch();
+                toast({ title: "Refreshed", description: "Safety alerts updated" });
+              }}
+            >
+              <RefreshCw className={cn("h-5 w-5", loading && "animate-spin")} />
+            </Button>
+            <Button variant="outline" size="icon">
+              <Settings className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         {/* Monitoring Status */}
@@ -60,7 +128,7 @@ export default function SafetyMonitor() {
               </div>
               <Switch
                 checked={monitoringEnabled}
-                onCheckedChange={setMonitoringEnabled}
+                onCheckedChange={handleToggleMonitoring}
               />
             </div>
           </CardHeader>
@@ -118,36 +186,7 @@ export default function SafetyMonitor() {
           </TabsList>
           
           <TabsContent value="alerts" className="space-y-4 mt-4">
-            {alerts.map((alert) => (
-              <Card key={alert.id}>
-                <CardContent className="pt-6">
-                  <div className="flex items-start gap-4">
-                    <div className={`p-2 rounded-full ${
-                      alert.severity === 'high' ? 'bg-emergency/10' : 
-                      alert.severity === 'medium' ? 'bg-accent/10' : 
-                      'bg-primary/10'
-                    }`}>
-                      {alert.type === 'blocked' ? (
-                        <AlertTriangle className={`h-5 w-5 ${
-                          alert.severity === 'high' ? 'text-emergency' : 
-                          alert.severity === 'medium' ? 'text-accent' : 
-                          'text-primary'
-                        }`} />
-                      ) : (
-                        <CheckCircle className="h-5 w-5 text-primary" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium">{alert.message}</p>
-                      <p className="text-sm text-muted-foreground mt-1">{alert.time}</p>
-                    </div>
-                    <Badge variant={alert.severity === 'high' ? 'destructive' : 'secondary'}>
-                      {alert.severity}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            <SafetyAlertsList />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-4 mt-4">
