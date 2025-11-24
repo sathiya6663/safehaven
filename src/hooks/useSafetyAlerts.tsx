@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -32,7 +33,7 @@ export function useSafetyAlerts() {
       if (error) throw error;
       setAlerts(data || []);
     } catch (error: any) {
-      console.error('Error fetching safety alerts:', error);
+      logger.error('Error fetching safety alerts', { error: error?.message });
     } finally {
       setLoading(false);
     }
