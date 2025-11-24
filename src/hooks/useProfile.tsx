@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -34,7 +35,7 @@ export function useProfile() {
       if (error) throw error;
       setProfile(data);
     } catch (error: any) {
-      console.error('Error fetching profile:', error);
+      logger.error('Error fetching profile', { error: error?.message });
     } finally {
       setLoading(false);
     }

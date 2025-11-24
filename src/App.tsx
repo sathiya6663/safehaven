@@ -5,38 +5,49 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import Welcome from "./pages/Welcome";
-import SignUp from "./pages/SignUp";
-import SignIn from "./pages/SignIn";
-import ProfileSetup from "./pages/ProfileSetup";
-import Dashboard from "./pages/Dashboard";
-import Counseling from "./pages/Counseling";
-import CounselingSession from "./pages/CounselingSession";
-import Profile from "./pages/Profile";
-import SOS from "./pages/SOS";
-import SafetyMonitor from "./pages/SafetyMonitor";
-import Emergency from "./pages/Emergency";
-import EvidenceVault from "./pages/EvidenceVault";
-import Tracking from "./pages/Tracking";
-import Learning from "./pages/Learning";
-import LearningStory from "./pages/LearningStory";
-import LearningQuiz from "./pages/LearningQuiz";
-import Legal from "./pages/Legal";
-import Community from "./pages/Community";
-import GuardianDashboard from "./pages/GuardianDashboard";
-import Help from "./pages/Help";
-import NotFound from "./pages/NotFound";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { Suspense, lazy } from "react";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+
+// Lazy load pages
+const Welcome = lazy(() => import("./pages/Welcome"));
+const SignUp = lazy(() => import("./pages/SignUp"));
+const SignIn = lazy(() => import("./pages/SignIn"));
+const ProfileSetup = lazy(() => import("./pages/ProfileSetup"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Counseling = lazy(() => import("./pages/Counseling"));
+const CounselingSession = lazy(() => import("./pages/CounselingSession"));
+const Profile = lazy(() => import("./pages/Profile"));
+const SOS = lazy(() => import("./pages/SOS"));
+const SafetyMonitor = lazy(() => import("./pages/SafetyMonitor"));
+const Emergency = lazy(() => import("./pages/Emergency"));
+const EvidenceVault = lazy(() => import("./pages/EvidenceVault"));
+const Tracking = lazy(() => import("./pages/Tracking"));
+const Learning = lazy(() => import("./pages/Learning"));
+const LearningStory = lazy(() => import("./pages/LearningStory"));
+const LearningQuiz = lazy(() => import("./pages/LearningQuiz"));
+const Legal = lazy(() => import("./pages/Legal"));
+const Community = lazy(() => import("./pages/Community"));
+const GuardianDashboard = lazy(() => import("./pages/GuardianDashboard"));
+const Help = lazy(() => import("./pages/Help"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <Suspense fallback={
+              <div className="min-h-screen flex items-center justify-center">
+                <LoadingSpinner />
+              </div>
+            }>
+              <Routes>
             <Route path="/" element={<Welcome />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/signin" element={<SignIn />} />
@@ -64,11 +75,13 @@ const App = () => (
             
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+              </Routes>
+            </Suspense>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

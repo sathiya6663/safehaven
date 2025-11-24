@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -32,7 +33,7 @@ export function useEmergencyContacts() {
       if (error) throw error;
       setContacts(data || []);
     } catch (error: any) {
-      console.error('Error fetching emergency contacts:', error);
+      logger.error('Error fetching emergency contacts', { error: error?.message });
       toast.error('Failed to load emergency contacts');
     } finally {
       setLoading(false);
