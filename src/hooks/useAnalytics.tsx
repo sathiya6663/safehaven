@@ -79,8 +79,8 @@ export function useAnalytics() {
       // Log in development
       logger.debug('Analytics event', { event });
 
-      // Store in Supabase
-      const { error } = await supabase.from('analytics_events').insert({
+      // Store in Supabase using type assertion for new table
+      const { error } = await (supabase as any).from('analytics_events').insert({
         user_id: user?.id,
         user_type: userType,
         event_name: eventName,

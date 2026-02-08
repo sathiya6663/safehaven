@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics_events: {
+        Row: {
+          created_at: string
+          device_info: Json | null
+          event_data: Json | null
+          event_name: string
+          id: string
+          page_url: string | null
+          session_id: string | null
+          user_id: string | null
+          user_type: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_info?: Json | null
+          event_data?: Json | null
+          event_name: string
+          id?: string
+          page_url?: string | null
+          session_id?: string | null
+          user_id?: string | null
+          user_type?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_info?: Json | null
+          event_data?: Json | null
+          event_name?: string
+          id?: string
+          page_url?: string | null
+          session_id?: string | null
+          user_id?: string | null
+          user_type?: string | null
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -512,6 +548,48 @@ export type Database = {
           title?: string
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_feedback: {
+        Row: {
+          created_at: string
+          feedback_type: string
+          id: string
+          message: string | null
+          page_url: string | null
+          rating: number | null
+          screen_size: string | null
+          status: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          feedback_type: string
+          id?: string
+          message?: string | null
+          page_url?: string | null
+          rating?: number | null
+          screen_size?: string | null
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          feedback_type?: string
+          id?: string
+          message?: string | null
+          page_url?: string | null
+          rating?: number | null
+          screen_size?: string | null
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
