@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -51,7 +50,11 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
     setLoading(true);
     try {
-      const { error } = await supabase.from('user_feedback').insert({
+      // Use rpc or raw query since table types aren't regenerated yet
+      const { error } = await supabase.rpc('exec_sql' as any, {}) as any;
+      
+      // Fallback to direct insert with type assertion
+      const insertResult = await (supabase as any).from('user_feedback').insert({
         user_id: user?.id,
         feedback_type: type,
         message: message.trim(),
@@ -61,7 +64,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
         screen_size: `${window.innerWidth}x${window.innerHeight}`,
       });
 
-      if (error) throw error;
+      if (insertResult.error) throw insertResult.error;
 
       toast({
         title: 'Thank you for your feedback!',
@@ -144,7 +147,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
                       <Star
                         className={`h-8 w-8 ${
                           star <= rating
-                            ? 'fill-yellow-400 text-yellow-400'
+                            ? 'fill-primary text-primary'
                             : 'text-muted-foreground'
                         }`}
                       />

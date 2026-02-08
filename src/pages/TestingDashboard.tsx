@@ -6,8 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { Bug, Lightbulb, MessageCircle, Star, TrendingUp, Users, Activity, AlertTriangle } from 'lucide-react';
+import { Bug, Lightbulb, MessageCircle, Star, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface FeedbackItem {
@@ -28,6 +27,8 @@ interface AnalyticsEvent {
   page_url: string;
   user_type: string;
   created_at: string;
+  session_id?: string;
+  user_id?: string;
 }
 
 interface DashboardStats {
@@ -41,7 +42,6 @@ interface DashboardStats {
 }
 
 export default function TestingDashboard() {
-  const { user } = useAuth();
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
   const [events, setEvents] = useState<AnalyticsEvent[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -56,38 +56,41 @@ export default function TestingDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch feedback
-      const { data: feedbackData } = await supabase
+      // Fetch feedback using type assertion for new table
+      const { data: feedbackData } = await (supabase as any)
         .from('user_feedback')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
 
-      // Fetch analytics events
-      const { data: eventsData } = await supabase
+      // Fetch analytics events using type assertion for new table
+      const { data: eventsData } = await (supabase as any)
         .from('analytics_events')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(500);
 
-      setFeedback(feedbackData || []);
-      setEvents(eventsData || []);
+      const typedFeedback = (feedbackData || []) as FeedbackItem[];
+      const typedEvents = (eventsData || []) as AnalyticsEvent[];
+
+      setFeedback(typedFeedback);
+      setEvents(typedEvents);
 
       // Calculate stats
-      if (feedbackData && eventsData) {
-        const bugReports = feedbackData.filter(f => f.feedback_type === 'bug').length;
-        const featureRequests = feedbackData.filter(f => f.feedback_type === 'feature').length;
-        const ratings = feedbackData.filter(f => f.rating !== null).map(f => f.rating as number);
+      if (typedFeedback && typedEvents) {
+        const bugReports = typedFeedback.filter(f => f.feedback_type === 'bug').length;
+        const featureRequests = typedFeedback.filter(f => f.feedback_type === 'feature').length;
+        const ratings = typedFeedback.filter(f => f.rating !== null).map(f => f.rating as number);
         const averageRating = ratings.length > 0 
           ? ratings.reduce((a, b) => a + b, 0) / ratings.length 
           : 0;
 
         // Count unique users from events
-        const uniqueUsers = new Set(eventsData.map(e => e.user_id || e.session_id)).size;
+        const uniqueUsers = new Set(typedEvents.map(e => e.user_id || e.session_id)).size;
 
         // Top pages
         const pageCounts: Record<string, number> = {};
-        eventsData
+        typedEvents
           .filter(e => e.event_name === 'page_view')
           .forEach(e => {
             const page = e.page_url || '/';
@@ -99,13 +102,13 @@ export default function TestingDashboard() {
           .slice(0, 5);
 
         // Recent errors
-        const recentErrors = eventsData.filter(
+        const recentErrors = typedEvents.filter(
           e => e.event_name === 'error_occurred' && 
           new Date(e.created_at).getTime() > Date.now() - 24 * 60 * 60 * 1000
         ).length;
 
         setStats({
-          totalFeedback: feedbackData.length,
+          totalFeedback: typedFeedback.length,
           bugReports,
           featureRequests,
           averageRating,
@@ -122,7 +125,7 @@ export default function TestingDashboard() {
   };
 
   const updateFeedbackStatus = async (id: string, status: string) => {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('user_feedback')
       .update({ status })
       .eq('id', id);
@@ -140,10 +143,10 @@ export default function TestingDashboard() {
 
   const getFeedbackIcon = (type: string) => {
     switch (type) {
-      case 'bug': return <Bug className="h-4 w-4 text-red-500" />;
-      case 'feature': return <Lightbulb className="h-4 w-4 text-yellow-500" />;
+      case 'bug': return <Bug className="h-4 w-4 text-destructive" />;
+      case 'feature': return <Lightbulb className="h-4 w-4 text-secondary" />;
       case 'rating': return <Star className="h-4 w-4 text-primary" />;
-      default: return <MessageCircle className="h-4 w-4 text-blue-500" />;
+      default: return <MessageCircle className="h-4 w-4 text-primary" />;
     }
   };
 
@@ -151,7 +154,7 @@ export default function TestingDashboard() {
     switch (status) {
       case 'new': return <Badge variant="default">New</Badge>;
       case 'in_progress': return <Badge variant="secondary">In Progress</Badge>;
-      case 'resolved': return <Badge variant="outline" className="text-green-600">Resolved</Badge>;
+      case 'resolved': return <Badge variant="outline" className="text-primary">Resolved</Badge>;
       case 'wont_fix': return <Badge variant="outline" className="text-muted-foreground">Won't Fix</Badge>;
       default: return <Badge variant="outline">{status}</Badge>;
     }
@@ -196,7 +199,7 @@ export default function TestingDashboard() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Bug Reports</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-red-500">{stats.bugReports}</p>
+                <p className="text-2xl font-bold text-destructive">{stats.bugReports}</p>
               </CardContent>
             </Card>
             <Card>
@@ -206,7 +209,7 @@ export default function TestingDashboard() {
               <CardContent>
                 <p className="text-2xl font-bold flex items-center gap-1">
                   {stats.averageRating.toFixed(1)}
-                  <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                  <Star className="h-5 w-5 fill-primary text-primary" />
                 </p>
               </CardContent>
             </Card>
@@ -287,7 +290,7 @@ export default function TestingDashboard() {
                           <span className="font-medium capitalize">{item.feedback_type}</span>
                           {item.rating && (
                             <span className="flex items-center gap-1 text-sm">
-                              {item.rating}/5 <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                              {item.rating}/5 <Star className="h-3 w-3 fill-primary text-primary" />
                             </span>
                           )}
                           {getStatusBadge(item.status)}

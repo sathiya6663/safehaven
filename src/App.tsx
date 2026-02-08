@@ -30,6 +30,7 @@ const Legal = lazy(() => import("./pages/Legal"));
 const Community = lazy(() => import("./pages/Community"));
 const GuardianDashboard = lazy(() => import("./pages/GuardianDashboard"));
 const Help = lazy(() => import("./pages/Help"));
+const TestingDashboard = lazy(() => import("./pages/TestingDashboard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -72,6 +73,7 @@ const App = () => (
             <Route path="/legal" element={<ProtectedRoute><Legal /></ProtectedRoute>} />
             <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
             <Route path="/guardian-dashboard" element={<ProtectedRoute allowedTypes={['guardian']}><GuardianDashboard /></ProtectedRoute>} />
+            <Route path="/testing-dashboard" element={<ProtectedRoute><TestingDashboard /></ProtectedRoute>} />
             
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
