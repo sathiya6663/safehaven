@@ -62,7 +62,7 @@ export default function Emergency() {
     },
     {
       id: 3,
-      name: "Women's Support Center",
+      name: "Community Support Center",
       type: "ngo",
       phone: "(555) 345-6789",
       address: "789 Safe Haven Blvd",

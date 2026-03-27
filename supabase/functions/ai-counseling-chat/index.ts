@@ -45,27 +45,27 @@ serve(async (req) => {
       .eq('user_id', user.id)
       .single();
 
-    const verifiedUserType = profile?.user_type || userType || 'woman';
+    const verifiedUserType = profile?.user_type || userType || 'adult';
 
     // Age-appropriate system prompts
     const systemPrompts = {
-      child: `You are a compassionate AI counselor specializing in supporting children aged 8-17. 
+      minor: `You are a compassionate AI counselor specializing in supporting young people aged 8-17. 
 Use simple, age-appropriate language. Be warm, encouraging, and patient. 
 Focus on building confidence and resilience. Always prioritize safety.
 If you detect severe distress, bullying, abuse, or self-harm thoughts, immediately flag this as a crisis.`,
       
-      woman: `You are an empathetic AI counselor providing mental health support to women.
+      adult: `You are an empathetic AI counselor providing mental health support.
 Use professional yet warm language. Provide evidence-based coping strategies.
 Be trauma-informed and culturally sensitive. Empower and validate experiences.
 If you detect severe distress, abuse, or self-harm thoughts, immediately flag this as a crisis.`,
       
       guardian: `You are a supportive AI counselor helping guardians navigate caregiving challenges.
-Provide practical guidance on supporting children's mental health and safety.
+Provide practical guidance on supporting dependents' mental health and safety.
 Offer stress management techniques and resources for guardians.
-If you detect concerns about child safety or guardian distress, flag appropriately.`,
+If you detect concerns about dependent safety or guardian distress, flag appropriately.`,
     };
 
-    const systemPrompt = systemPrompts[verifiedUserType as keyof typeof systemPrompts] || systemPrompts.woman;
+    const systemPrompt = systemPrompts[verifiedUserType as keyof typeof systemPrompts] || systemPrompts.adult;
     
     const crisisKeywords = [
       'suicide', 'kill myself', 'end my life', 'want to die', 'hurt myself',

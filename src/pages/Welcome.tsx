@@ -55,10 +55,10 @@ export default function Welcome() {
             <Shield className="h-20 w-20 mx-auto text-primary" />
           </div>
           <h1 className="text-4xl font-heading font-bold mb-3 text-foreground">
-            SafeHaven
+            SafeGuard
           </h1>
           <p className="text-lg text-muted-foreground">
-            Your AI-powered safety companion
+            Your AI-powered personal safety companion
           </p>
         </div>
 

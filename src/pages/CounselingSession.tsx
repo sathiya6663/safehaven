@@ -31,7 +31,7 @@ type Message = {
 export default function CounselingSession() {
   const navigate = useNavigate();
   const { user, userType } = useAuth();
-  const { streamChat, isLoading, crisisDetected } = useAICounseling(userType || 'woman');
+  const { streamChat, isLoading, crisisDetected } = useAICounseling(userType || 'adult');
   const { toast } = useToast();
   
   const [messages, setMessages] = useState<Message[]>([
@@ -129,7 +129,7 @@ export default function CounselingSession() {
       const { data, error } = await supabase.functions.invoke('generate-coping-strategies', {
         body: {
           emotionalState,
-          userType: userType || 'woman',
+          userType: userType || 'adult',
           recentTopics: messages
             .filter(m => m.role === 'user')
             .slice(-3)

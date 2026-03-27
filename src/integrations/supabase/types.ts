@@ -680,7 +680,7 @@ export type Database = {
       alert_status: "active" | "acknowledged" | "resolved" | "escalated"
       app_role: "admin" | "moderator" | "user"
       evidence_type: "image" | "video" | "audio" | "document" | "screenshot"
-      user_type: "woman" | "child" | "guardian"
+      user_type: "adult" | "minor" | "guardian"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -812,7 +812,7 @@ export const Constants = {
       alert_status: ["active", "acknowledged", "resolved", "escalated"],
       app_role: ["admin", "moderator", "user"],
       evidence_type: ["image", "video", "audio", "document", "screenshot"],
-      user_type: ["woman", "child", "guardian"],
+      user_type: ["adult", "minor", "guardian"],
     },
   },
 } as const

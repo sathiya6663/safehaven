@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedTypes?: ('woman' | 'child' | 'guardian')[];
+  allowedTypes?: ('adult' | 'minor' | 'guardian')[];
 }
 
 export function ProtectedRoute({ children, allowedTypes }: ProtectedRouteProps) {

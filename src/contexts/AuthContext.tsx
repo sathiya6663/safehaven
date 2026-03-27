@@ -6,8 +6,8 @@ import { useNavigate } from 'react-router-dom';
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  userType: 'woman' | 'child' | 'guardian' | null;
-  signUp: (email: string, password: string, userType: 'woman' | 'child' | 'guardian') => Promise<{ error: any }>;
+  userType: 'adult' | 'minor' | 'guardian' | null;
+  signUp: (email: string, password: string, userType: 'adult' | 'minor' | 'guardian') => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any }>;
@@ -18,7 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [userType, setUserType] = useState<'woman' | 'child' | 'guardian' | null>(null);
+  const [userType, setUserType] = useState<'adult' | 'minor' | 'guardian' | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string, type: 'woman' | 'child' | 'guardian') => {
+  const signUp = async (email: string, password: string, type: 'adult' | 'minor' | 'guardian') => {
     const redirectUrl = `${window.location.origin}/profile-setup`;
     
     const { data, error } = await supabase.auth.signUp({

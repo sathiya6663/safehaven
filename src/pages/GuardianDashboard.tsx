@@ -79,7 +79,7 @@ export default function GuardianDashboard() {
             <Shield className="h-8 w-8 text-primary" />
             Guardian Dashboard
           </h1>
-          <p className="text-muted-foreground">Monitor and support your child's safety</p>
+          <p className="text-muted-foreground">Monitor and support your dependents' safety</p>
         </div>
 
         {/* Child Selector */}
