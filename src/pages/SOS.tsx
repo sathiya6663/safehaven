@@ -22,7 +22,7 @@ export default function SOS() {
   ];
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     if (sosActivated && countdown > 0) {
       timer = setTimeout(() => setCountdown(countdown - 1), 1000);
     } else if (sosActivated && countdown === 0) {

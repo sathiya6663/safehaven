@@ -12,17 +12,35 @@ serve(async (req) => {
   }
 
   try {
-    const { text, userId, context } = await req.json();
+    // Authenticate the user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), 
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), 
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const { text, context } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Use service role client for inserting safety alerts
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // AI-powered content analysis
     const analysisPrompt = `Analyze this text for safety concerns. Detect:
@@ -60,13 +78,12 @@ Respond with JSON: {
           },
           { role: "user", content: analysisPrompt },
         ],
-        temperature: 0.3, // Lower temperature for more consistent safety analysis
+        temperature: 0.3,
       }),
     });
 
     if (!response.ok) {
       console.error("AI moderation error:", response.status);
-      // Fail-safe: treat as potentially unsafe if AI is unavailable
       return new Response(
         JSON.stringify({ 
           isSafe: false, 
@@ -82,10 +99,8 @@ Respond with JSON: {
     const data = await response.json();
     const aiResponse = data.choices[0]?.message?.content || "{}";
     
-    // Parse AI response
     let analysisResult;
     try {
-      // Extract JSON from response (handle markdown code blocks if present)
       const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
       analysisResult = jsonMatch ? JSON.parse(jsonMatch[0]) : {
         isSafe: true,
@@ -105,12 +120,12 @@ Respond with JSON: {
       };
     }
 
-    // Create safety alert if content is unsafe
+    // Create safety alert if content is unsafe - use authenticated user's ID
     if (!analysisResult.isSafe && analysisResult.actionRequired !== "none") {
       const { error: alertError } = await supabase
         .from("safety_alerts")
         .insert({
-          user_id: userId,
+          user_id: user.id,
           alert_type: analysisResult.categories.join(", "),
           title: `${analysisResult.severity.toUpperCase()} Safety Alert`,
           description: analysisResult.explanation,
@@ -137,7 +152,7 @@ Respond with JSON: {
     console.error("Content moderation error:", error);
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: "An unexpected error occurred.",
         isSafe: false,
         severity: "medium",
         actionRequired: "alert"
