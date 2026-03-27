@@ -12,25 +12,42 @@ serve(async (req) => {
   }
 
   try {
-    const { userId, type, title, body, data, priority } = await req.json();
-    
-    // Initialize Supabase client
+    // Authenticate the user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), 
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), 
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const { type, title, body, data, priority } = await req.json();
+    
+    // Use service role for database operations
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get user's notification preferences
     const { data: profile } = await supabase
       .from("profiles")
       .select("*")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .single();
 
     if (!profile) {
       throw new Error("User profile not found");
     }
 
-    // Check if notifications should be sent based on type and priority
     const notificationTypes = {
       emergency: { sendAlways: true, urgent: true },
       safety_alert: { sendAlways: true, urgent: true },
@@ -47,24 +64,18 @@ serve(async (req) => {
       const { data: guardianLinks } = await supabase
         .from("guardian_child_links")
         .select("guardian_id")
-        .eq("child_id", userId)
+        .eq("child_id", user.id)
         .eq("status", "approved");
 
       if (guardianLinks && guardianLinks.length > 0) {
-        // Send notifications to guardians
         for (const link of guardianLinks) {
           console.log(`Sending notification to guardian: ${link.guardian_id}`);
-          // In a real implementation, this would integrate with:
-          // - Web Push API for browser notifications
-          // - SMS service (Twilio) for text messages
-          // - Email service for email notifications
         }
       }
     }
 
-    // Create notification record
     const notification = {
-      user_id: userId,
+      user_id: user.id,
       type,
       title,
       body,
@@ -75,18 +86,6 @@ serve(async (req) => {
     };
 
     console.log("Notification prepared:", notification);
-
-    // In a production environment, this would integrate with:
-    // 1. Web Push API for browser notifications
-    // 2. Expo Push Notifications for mobile apps
-    // 3. SMS service (Twilio) for emergency text alerts
-    // 4. Email service for email notifications
-    
-    // For now, we log the notification
-    // The actual push notification implementation would require:
-    // - Client-side registration of push notification tokens
-    // - Storage of push tokens in the database
-    // - Integration with push notification services
 
     return new Response(
       JSON.stringify({ 
@@ -99,7 +98,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Notification error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: "An unexpected error occurred." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

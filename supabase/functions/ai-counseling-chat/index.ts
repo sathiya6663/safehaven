@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,12 +12,40 @@ serve(async (req) => {
   }
 
   try {
+    // Authenticate the user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), 
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), 
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const { messages, emotionalState, userType } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
+
+    // Fetch the actual user type from the database instead of trusting client
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('user_type')
+      .eq('user_id', user.id)
+      .single();
+
+    const verifiedUserType = profile?.user_type || userType || 'woman';
 
     // Age-appropriate system prompts
     const systemPrompts = {
@@ -36,7 +65,7 @@ Offer stress management techniques and resources for guardians.
 If you detect concerns about child safety or guardian distress, flag appropriately.`,
     };
 
-    const systemPrompt = systemPrompts[userType as keyof typeof systemPrompts] || systemPrompts.woman;
+    const systemPrompt = systemPrompts[verifiedUserType as keyof typeof systemPrompts] || systemPrompts.woman;
     
     const crisisKeywords = [
       'suicide', 'kill myself', 'end my life', 'want to die', 'hurt myself',
@@ -77,8 +106,6 @@ If you detect concerns about child safety or guardian distress, flag appropriate
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
       throw new Error("AI service error");
     }
 
@@ -88,7 +115,6 @@ If you detect concerns about child safety or guardian distress, flag appropriate
 
     if (crisisDetected) {
       console.log("CRISIS DETECTED - User message contains crisis keywords");
-      // Add crisis flag to response headers
       return new Response(response.body, {
         headers: { 
           ...corsHeaders, 
@@ -104,7 +130,7 @@ If you detect concerns about child safety or guardian distress, flag appropriate
   } catch (error) {
     console.error("Counseling chat error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: "An unexpected error occurred. Please try again." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
