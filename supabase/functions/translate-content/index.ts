@@ -41,7 +41,7 @@ serve(async (req) => {
     const contextInstructions = {
       legal: "This is legal information. Maintain accuracy and formal tone. Use proper legal terminology.",
       counseling: "This is mental health content. Use compassionate, supportive language. Preserve emotional nuance.",
-      educational: "This is educational content for children/young adults. Use clear, simple language.",
+      educational: "This is educational content for young people/adults. Use clear, simple language.",
       emergency: "This is emergency safety information. Keep it concise and urgent. Clarity is critical.",
       general: "General content. Maintain the original tone and meaning."
     };
