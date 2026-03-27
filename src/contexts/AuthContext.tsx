@@ -6,8 +6,8 @@ import { useNavigate } from 'react-router-dom';
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  userType: 'woman' | 'child' | 'guardian' | null;
-  signUp: (email: string, password: string, userType: 'woman' | 'child' | 'guardian') => Promise<{ error: any }>;
+  userType: 'adult' | 'minor' | 'guardian' | null;
+  signUp: (email: string, password: string, userType: 'adult' | 'minor' | 'guardian') => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any }>;
