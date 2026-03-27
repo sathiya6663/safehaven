@@ -18,7 +18,7 @@ export default function Dashboard() {
       <div className="container px-4 py-6 max-w-2xl mx-auto space-y-6">
         {/* Welcome Section */}
         <div>
-          <h1 className="text-2xl font-heading font-bold mb-1">{greeting}, Sarah! 👋</h1>
+          <h1 className="text-2xl font-heading font-bold mb-1">{greeting}! 👋</h1>
           <p className="text-muted-foreground">How are you feeling today?</p>
         </div>
 

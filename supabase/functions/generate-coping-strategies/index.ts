@@ -45,10 +45,10 @@ serve(async (req) => {
       .eq('user_id', user.id)
       .single();
 
-    const verifiedUserType = profile?.user_type || userType || 'woman';
+    const verifiedUserType = profile?.user_type || userType || 'adult';
 
-    const ageAppropriate = verifiedUserType === "child" 
-      ? "age-appropriate for children (8-17 years old)" 
+    const ageAppropriate = verifiedUserType === "minor" 
+      ? "age-appropriate for young people (8-17 years old)" 
       : "suitable for adults";
 
     const prompt = `Generate 3-5 personalized coping strategies for someone experiencing ${emotionalState}.
