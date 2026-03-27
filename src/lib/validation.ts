@@ -16,7 +16,7 @@ export const emailSchema = z.string()
   .toLowerCase();
 
 // User type validation
-export const userTypeSchema = z.enum(['woman', 'child', 'guardian']);
+export const userTypeSchema = z.enum(['adult', 'minor', 'guardian']);
 
 // Age validation for COPPA compliance
 export const ageSchema = z.number()

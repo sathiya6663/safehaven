@@ -7,7 +7,7 @@ type Message = {
   content: string;
 };
 
-export function useAICounseling(userType: 'woman' | 'child' | 'guardian' = 'woman') {
+export function useAICounseling(userType: 'adult' | 'minor' | 'guardian' = 'adult') {
   const [isLoading, setIsLoading] = useState(false);
   const [crisisDetected, setCrisisDetected] = useState(false);
   const { toast } = useToast();
