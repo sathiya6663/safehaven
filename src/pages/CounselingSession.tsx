@@ -129,7 +129,7 @@ export default function CounselingSession() {
       const { data, error } = await supabase.functions.invoke('generate-coping-strategies', {
         body: {
           emotionalState,
-          userType: userType || 'woman',
+          userType: userType || 'adult',
           recentTopics: messages
             .filter(m => m.role === 'user')
             .slice(-3)
