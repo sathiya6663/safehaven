@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Header } from "@/components/layout/Header";
-import { User, Baby, Users } from "lucide-react";
+import { User, Users, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
-type UserType = "woman" | "child" | "guardian";
+type UserType = "adult" | "minor" | "guardian";
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -32,8 +32,8 @@ export default function SignUp() {
   }
 
   const userTypes = [
-    { id: "woman" as UserType, label: "Woman", icon: User, description: "18+ years" },
-    { id: "child" as UserType, label: "Child", icon: Baby, description: "8-17 years" },
+    { id: "adult" as UserType, label: "Adult", icon: User, description: "18+ years" },
+    { id: "minor" as UserType, label: "Minor", icon: ShieldCheck, description: "8-17 years" },
     { id: "guardian" as UserType, label: "Guardian", icon: Users, description: "Parent/Caregiver" },
   ];
 
@@ -67,12 +67,12 @@ export default function SignUp() {
       return;
     }
 
-    if (userType === 'child' && age >= 18) {
-      toast.error("Child accounts are for users under 18");
+    if (userType === 'minor' && age >= 18) {
+      toast.error("Minor accounts are for users under 18");
       return;
     }
 
-    if ((userType === 'woman' || userType === 'guardian') && age < 18) {
+    if ((userType === 'adult' || userType === 'guardian') && age < 18) {
       toast.error("You must be 18 or older for this account type");
       return;
     }
@@ -97,7 +97,7 @@ export default function SignUp() {
       <div className="container px-4 py-8 max-w-md mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-heading font-bold mb-2">Create Account</h1>
-          <p className="text-muted-foreground">Join SafeHaven for a safer tomorrow</p>
+          <p className="text-muted-foreground">Join SafeGuard for a safer tomorrow</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -162,7 +162,7 @@ export default function SignUp() {
               required
             />
             <p className="text-xs text-muted-foreground">
-              Must be 8 years or older to use SafeHaven
+              Must be 8 years or older to use SafeGuard
             </p>
           </div>
 

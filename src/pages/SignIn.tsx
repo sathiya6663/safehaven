@@ -70,7 +70,7 @@ export default function SignIn() {
       <div className="container px-4 py-8 max-w-md mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-heading font-bold mb-2">Welcome Back</h1>
-          <p className="text-muted-foreground">Sign in to your SafeHaven account</p>
+          <p className="text-muted-foreground">Sign in to your SafeGuard account</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
