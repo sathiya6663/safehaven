@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { AlertCircle, Send, X, Heart, Brain, Lightbulb, Loader2 } from "lucide-react";
+import { AlertCircle, Send, X, Heart, Brain, Lightbulb, Loader2, Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAICounseling } from "@/hooks/useAICounseling";
+import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -52,6 +53,7 @@ export default function CounselingSession() {
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const voice = useVoiceInput({ sessionId: sessionIdRef.current });
 
   // Session timer
   useEffect(() => {
