@@ -112,6 +112,24 @@ export default function SOS() {
                       Location sharing enabled
                     </Badge>
                   )}
+                  {captureStatus === "capturing" && (
+                    <Badge variant="default" className="gap-2 ml-2">
+                      <Camera className="h-3 w-3" />
+                      <Mic className="h-3 w-3" />
+                      Capturing evidence…
+                    </Badge>
+                  )}
+                  {captureStatus === "done" && (
+                    <Badge variant="secondary" className="gap-2 ml-2">
+                      ✓ Evidence saved
+                    </Badge>
+                  )}
+                  {captureStatus === "offline" && (
+                    <Badge variant="destructive" className="gap-2 ml-2">
+                      <WifiOff className="h-3 w-3" />
+                      Offline — queued
+                    </Badge>
+                  )}
                 </div>
                 <Button
                   variant="outline"
