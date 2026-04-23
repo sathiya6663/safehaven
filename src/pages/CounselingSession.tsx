@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { AlertCircle, Send, X, Heart, Brain, Lightbulb, Loader2 } from "lucide-react";
+import { AlertCircle, Send, X, Heart, Brain, Lightbulb, Loader2, Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAICounseling } from "@/hooks/useAICounseling";
+import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -52,6 +53,7 @@ export default function CounselingSession() {
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const voice = useVoiceInput({ sessionId: sessionIdRef.current });
 
   // Session timer
   useEffect(() => {
@@ -364,14 +366,41 @@ export default function CounselingSession() {
       {/* Input Area */}
       <div className="border-t bg-background">
         <div className="container px-4 py-4 max-w-2xl mx-auto">
+          {voice.listening && (
+            <div className="mb-2 flex items-center gap-2 text-xs">
+              <span className="inline-flex h-2 w-2 rounded-full bg-destructive animate-pulse" />
+              <span className="text-muted-foreground">
+                Listening… stress {voice.stressLevel}/100
+                {voice.panicDetected && <span className="text-destructive font-semibold ml-1">· panic detected</span>}
+              </span>
+            </div>
+          )}
           <div className="flex gap-2">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === "Enter" && handleSend()}
-              placeholder="Share what's on your mind..."
+              placeholder={voice.listening ? "Speaking…" : "Share what's on your mind..."}
               className="flex-1"
             />
+            {voice.supported && (
+              <Button
+                variant={voice.listening ? "destructive" : "outline"}
+                size="icon"
+                onClick={async () => {
+                  if (voice.listening) {
+                    const result = await voice.stop();
+                    if (result.transcript) setInput((prev) => (prev ? prev + " " : "") + result.transcript);
+                    if (result.panicDetected) setEmotionalState("stressed");
+                  } else {
+                    voice.start();
+                  }
+                }}
+                aria-label={voice.listening ? "Stop voice input" : "Start voice input"}
+              >
+                {voice.listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </Button>
+            )}
             <Button onClick={handleSend} disabled={!input.trim() || isLoading}>
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

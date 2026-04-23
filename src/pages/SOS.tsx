@@ -5,8 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertCircle, Phone, MapPin, Shield, Volume2, VolumeX, Clock } from "lucide-react";
+import { AlertCircle, Phone, MapPin, Shield, Volume2, VolumeX, Clock, Camera, Mic, WifiOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useSOSCapture } from "@/hooks/useSOSCapture";
+import { useGeolocation } from "@/hooks/useGeolocation";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SOS() {
   const navigate = useNavigate();
@@ -15,19 +18,52 @@ export default function SOS() {
   const [silentMode, setSilentMode] = useState(false);
   const [shareLocation, setShareLocation] = useState(true);
   const [customMessage, setCustomMessage] = useState("");
+  const [captureStatus, setCaptureStatus] = useState<"idle" | "capturing" | "done" | "offline">("idle");
+  const { triggerSOS, syncOfflineQueue } = useSOSCapture();
+  const { location, getCurrentLocation } = useGeolocation();
+  const { toast } = useToast();
 
   const emergencyContacts = [
     { name: "Mom", phone: "(555) 123-4567" },
     { name: "Emergency Contact", phone: "(555) 987-6543" },
   ];
 
+  // Sync any offline-queued SOS events on mount
+  useEffect(() => {
+    syncOfflineQueue();
+    if (shareLocation) getCurrentLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     if (sosActivated && countdown > 0) {
       timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-    } else if (sosActivated && countdown === 0) {
-      // TODO: Trigger actual SOS in Phase 7
-      console.log("SOS Alert Sent!");
+    } else if (sosActivated && countdown === 0 && captureStatus === "idle") {
+      // Fire SOS capture once countdown hits 0
+      setCaptureStatus("capturing");
+      triggerSOS({
+        location: shareLocation && location ? { latitude: location.latitude, longitude: location.longitude } : null,
+        notes: customMessage || undefined,
+      })
+        .then((res) => {
+          if (!res) {
+            toast({ title: "SOS failed", description: "Could not record event. Please try again.", variant: "destructive" });
+            setCaptureStatus("idle");
+            return;
+          }
+          if (res.offline) {
+            setCaptureStatus("offline");
+            toast({ title: "Offline SOS queued", description: "Will sync as soon as you're back online." });
+          } else {
+            setCaptureStatus("done");
+            toast({ title: "Alert sent", description: "Audio + photo captured and saved to evidence vault." });
+          }
+        })
+        .catch(() => {
+          setCaptureStatus("idle");
+          toast({ title: "SOS error", description: "Something went wrong.", variant: "destructive" });
+        });
     }
     return () => clearTimeout(timer);
   }, [sosActivated, countdown]);
@@ -35,11 +71,13 @@ export default function SOS() {
   const handleActivateSOS = () => {
     setSosActivated(true);
     setCountdown(5);
+    setCaptureStatus("idle");
   };
 
   const handleCancelSOS = () => {
     setSosActivated(false);
     setCountdown(5);
+    setCaptureStatus("idle");
   };
 
   return (
@@ -72,6 +110,24 @@ export default function SOS() {
                     <Badge variant="secondary" className="gap-2 ml-2">
                       <MapPin className="h-3 w-3" />
                       Location sharing enabled
+                    </Badge>
+                  )}
+                  {captureStatus === "capturing" && (
+                    <Badge variant="default" className="gap-2 ml-2">
+                      <Camera className="h-3 w-3" />
+                      <Mic className="h-3 w-3" />
+                      Capturing evidence…
+                    </Badge>
+                  )}
+                  {captureStatus === "done" && (
+                    <Badge variant="secondary" className="gap-2 ml-2">
+                      ✓ Evidence saved
+                    </Badge>
+                  )}
+                  {captureStatus === "offline" && (
+                    <Badge variant="destructive" className="gap-2 ml-2">
+                      <WifiOff className="h-3 w-3" />
+                      Offline — queued
                     </Badge>
                   )}
                 </div>
