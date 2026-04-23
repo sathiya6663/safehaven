@@ -27,7 +27,7 @@ export function AICompanionWidget() {
       setMessages([
         {
           role: 'assistant',
-          content: `${greeting}! I'm your SafeGuard companion. How can I support you right now?`,
+          content: `${greeting}! I'm your SafeHaven companion. How can I support you right now?`,
         },
       ]);
     }
