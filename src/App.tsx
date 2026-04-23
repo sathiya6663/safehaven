@@ -8,6 +8,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Suspense, lazy } from "react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { AICompanionWidget } from "@/components/AICompanionWidget";
 
 // Lazy load pages
 const Welcome = lazy(() => import("./pages/Welcome"));
@@ -31,6 +32,7 @@ const Community = lazy(() => import("./pages/Community"));
 const GuardianDashboard = lazy(() => import("./pages/GuardianDashboard"));
 const Help = lazy(() => import("./pages/Help"));
 const TestingDashboard = lazy(() => import("./pages/TestingDashboard"));
+const RiskAlert = lazy(() => import("./pages/RiskAlert"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -74,10 +76,12 @@ const App = () => (
             <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
             <Route path="/guardian-dashboard" element={<ProtectedRoute allowedTypes={['guardian']}><GuardianDashboard /></ProtectedRoute>} />
             <Route path="/testing-dashboard" element={<ProtectedRoute><TestingDashboard /></ProtectedRoute>} />
+            <Route path="/risk-alert" element={<ProtectedRoute><RiskAlert /></ProtectedRoute>} />
             
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
               </Routes>
+              <AICompanionWidget />
             </Suspense>
           </AuthProvider>
         </BrowserRouter>

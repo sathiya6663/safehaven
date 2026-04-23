@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Heart, BookOpen, Shield, MessageCircle, Sun, MapPin, Calendar, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
+import { RiskScoreCard } from "@/components/RiskScoreCard";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -21,6 +22,9 @@ export default function Dashboard() {
           <h1 className="text-2xl font-heading font-bold mb-1">{greeting}! 👋</h1>
           <p className="text-muted-foreground">How are you feeling today?</p>
         </div>
+
+        {/* Live Risk Score */}
+        <RiskScoreCard />
 
         {/* Daily Check-in */}
         <Card className="p-5 gradient-primary">
