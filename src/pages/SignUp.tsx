@@ -97,7 +97,7 @@ export default function SignUp() {
       <div className="container px-4 py-8 max-w-md mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-heading font-bold mb-2">Create Account</h1>
-          <p className="text-muted-foreground">Join SafeGuard for a safer tomorrow</p>
+          <p className="text-muted-foreground">Join SafeHaven for a safer tomorrow</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -162,7 +162,7 @@ export default function SignUp() {
               required
             />
             <p className="text-xs text-muted-foreground">
-              Must be 8 years or older to use SafeGuard
+              Must be 8 years or older to use SafeHaven
             </p>
           </div>
 
