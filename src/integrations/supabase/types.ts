@@ -497,6 +497,39 @@ export type Database = {
         }
         Relationships: []
       }
+      risk_scores: {
+        Row: {
+          computed_at: string
+          created_at: string
+          factors: Json | null
+          id: string
+          level: string
+          location_data: Json | null
+          score: number
+          user_id: string
+        }
+        Insert: {
+          computed_at?: string
+          created_at?: string
+          factors?: Json | null
+          id?: string
+          level: string
+          location_data?: Json | null
+          score: number
+          user_id: string
+        }
+        Update: {
+          computed_at?: string
+          created_at?: string
+          factors?: Json | null
+          id?: string
+          level?: string
+          location_data?: Json | null
+          score?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       safety_alerts: {
         Row: {
           acknowledged_at: string | null
@@ -548,6 +581,54 @@ export type Database = {
           title?: string
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      sos_logs: {
+        Row: {
+          audio_evidence_id: string | null
+          contacts_notified: string[] | null
+          created_at: string
+          id: string
+          location_data: Json | null
+          notes: string | null
+          photo_evidence_id: string | null
+          resolved_at: string | null
+          status: string
+          triggered_at: string
+          updated_at: string
+          user_id: string
+          was_offline: boolean
+        }
+        Insert: {
+          audio_evidence_id?: string | null
+          contacts_notified?: string[] | null
+          created_at?: string
+          id?: string
+          location_data?: Json | null
+          notes?: string | null
+          photo_evidence_id?: string | null
+          resolved_at?: string | null
+          status?: string
+          triggered_at?: string
+          updated_at?: string
+          user_id: string
+          was_offline?: boolean
+        }
+        Update: {
+          audio_evidence_id?: string | null
+          contacts_notified?: string[] | null
+          created_at?: string
+          id?: string
+          location_data?: Json | null
+          notes?: string | null
+          photo_evidence_id?: string | null
+          resolved_at?: string | null
+          status?: string
+          triggered_at?: string
+          updated_at?: string
+          user_id?: string
+          was_offline?: boolean
         }
         Relationships: []
       }
@@ -610,6 +691,45 @@ export type Database = {
           created_at?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      voice_emotion_logs: {
+        Row: {
+          audio_metrics: Json | null
+          created_at: string
+          emotion: string | null
+          id: string
+          panic_detected: boolean
+          recorded_at: string
+          session_id: string | null
+          stress_level: number | null
+          transcript: string | null
+          user_id: string
+        }
+        Insert: {
+          audio_metrics?: Json | null
+          created_at?: string
+          emotion?: string | null
+          id?: string
+          panic_detected?: boolean
+          recorded_at?: string
+          session_id?: string | null
+          stress_level?: number | null
+          transcript?: string | null
+          user_id: string
+        }
+        Update: {
+          audio_metrics?: Json | null
+          created_at?: string
+          emotion?: string | null
+          id?: string
+          panic_detected?: boolean
+          recorded_at?: string
+          session_id?: string | null
+          stress_level?: number | null
+          transcript?: string | null
           user_id?: string
         }
         Relationships: []
