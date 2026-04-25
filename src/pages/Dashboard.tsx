@@ -1,32 +1,71 @@
+import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/Header";
 import { BottomTabBar } from "@/components/layout/BottomTabBar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Heart, BookOpen, Shield, MessageCircle, Sun, MapPin, Calendar, TrendingUp } from "lucide-react";
+import { Heart, BookOpen, Shield, MessageCircle, MapPin, Calendar, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import { RiskScoreCard } from "@/components/RiskScoreCard";
+import { useAuth } from "@/contexts/AuthContext";
+import { useProfile } from "@/hooks/useProfile";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { profile } = useProfile();
   const currentHour = new Date().getHours();
   const greeting = currentHour < 12 ? "Good morning" : currentHour < 18 ? "Good afternoon" : "Good evening";
+
+  const [stats, setStats] = useState({ sessions: 0, modules: 0, checks: 0 });
+  const [safetyScore, setSafetyScore] = useState<number>(95);
+
+  useEffect(() => {
+    if (!user) return;
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    (async () => {
+      const [sessionsRes, modulesRes, checksRes, alertsRes] = await Promise.all([
+        supabase.from("counseling_sessions").select("id", { count: "exact", head: true })
+          .eq("user_id", user.id).gte("created_at", since),
+        supabase.from("learning_progress").select("id", { count: "exact", head: true })
+          .eq("user_id", user.id).eq("status", "completed").gte("updated_at", since),
+        supabase.from("safety_alerts").select("id", { count: "exact", head: true })
+          .eq("user_id", user.id).gte("created_at", since),
+        supabase.from("safety_alerts").select("severity").eq("user_id", user.id).gte("created_at", since),
+      ]);
+
+      setStats({
+        sessions: sessionsRes.count ?? 0,
+        modules: modulesRes.count ?? 0,
+        checks: checksRes.count ?? 0,
+      });
+
+      const recent = alertsRes.data ?? [];
+      const crit = recent.filter((a) => a.severity === "critical").length;
+      const high = recent.filter((a) => a.severity === "high").length;
+      const med = recent.filter((a) => a.severity === "medium").length;
+      setSafetyScore(Math.max(20, 100 - (crit * 20 + high * 10 + med * 5)));
+    })();
+  }, [user]);
+
+  const displayName = profile?.full_name?.split(" ")[0] ?? "";
 
   return (
     <div className="min-h-screen bg-background pb-20">
       <Header />
       
       <div className="container px-4 py-6 max-w-2xl mx-auto space-y-6">
-        {/* Welcome Section */}
         <div>
-          <h1 className="text-2xl font-heading font-bold mb-1">{greeting}! 👋</h1>
+          <h1 className="text-2xl font-heading font-bold mb-1">
+            {greeting}{displayName ? `, ${displayName}` : ""}! 👋
+          </h1>
           <p className="text-muted-foreground">How are you feeling today?</p>
         </div>
 
-        {/* Live Risk Score */}
         <RiskScoreCard />
 
-        {/* Daily Check-in */}
         <Card className="p-5 gradient-primary">
           <h3 className="font-heading font-semibold text-primary-foreground mb-3">Daily Check-in</h3>
           <p className="text-sm text-primary-foreground/90 mb-4">
@@ -44,79 +83,55 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-3">
-          <Card 
-            className="p-4 hover:shadow-medium transition-shadow cursor-pointer"
-            onClick={() => navigate("/counseling")}
-          >
+          <Card className="p-4 hover:shadow-medium transition-shadow cursor-pointer" onClick={() => navigate("/counseling")}>
             <Heart className="h-8 w-8 text-secondary mb-2" />
             <h3 className="font-heading font-semibold text-sm mb-1">AI Counselor</h3>
             <p className="text-xs text-muted-foreground">Get support now</p>
           </Card>
-          
-          <Card 
-            className="p-4 hover:shadow-medium transition-shadow cursor-pointer"
-            onClick={() => navigate("/learning")}
-          >
+          <Card className="p-4 hover:shadow-medium transition-shadow cursor-pointer" onClick={() => navigate("/learning")}>
             <BookOpen className="h-8 w-8 text-primary mb-2" />
             <h3 className="font-heading font-semibold text-sm mb-1">Learn</h3>
             <p className="text-xs text-muted-foreground">Build confidence</p>
           </Card>
-          
-          <Card 
-            className="p-4 hover:shadow-medium transition-shadow cursor-pointer"
-            onClick={() => navigate("/safety-monitor")}
-          >
+          <Card className="p-4 hover:shadow-medium transition-shadow cursor-pointer" onClick={() => navigate("/safety-monitor")}>
             <Shield className="h-8 w-8 text-accent mb-2" />
             <h3 className="font-heading font-semibold text-sm mb-1">Safety Tools</h3>
             <p className="text-xs text-muted-foreground">Stay protected</p>
           </Card>
-          
-          <Card 
-            className="p-4 hover:shadow-medium transition-shadow cursor-pointer"
-            onClick={() => navigate("/community")}
-          >
+          <Card className="p-4 hover:shadow-medium transition-shadow cursor-pointer" onClick={() => navigate("/community")}>
             <MessageCircle className="h-8 w-8 text-secondary mb-2" />
             <h3 className="font-heading font-semibold text-sm mb-1">Community</h3>
             <p className="text-xs text-muted-foreground">Connect safely</p>
           </Card>
         </div>
 
-        {/* Weather & Location Safety */}
-        <Card className="p-5">
-          <div className="flex items-start gap-3 mb-3">
-            <Sun className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <h3 className="font-heading font-semibold mb-1">Local Safety Info</h3>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                <MapPin className="h-4 w-4" />
-                <span>San Francisco, CA</span>
+        {profile?.location && (
+          <Card className="p-5">
+            <div className="flex items-start gap-3 mb-3">
+              <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-heading font-semibold mb-1">Your Location</h3>
+                <p className="text-sm text-muted-foreground">{profile.location}</p>
               </div>
-              <p className="text-sm">Sunny, 72°F · Low crime area · Safe to travel</p>
             </div>
-          </div>
-        </Card>
+          </Card>
+        )}
 
-        {/* Safety Score */}
         <Card className="p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-heading font-semibold">Safety Score</h3>
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
-              <span className="text-2xl font-bold text-primary">85%</span>
+              <span className="text-2xl font-bold text-primary">{safetyScore}%</span>
             </div>
           </div>
-          <Progress value={85} className="h-2 mb-2" />
+          <Progress value={safetyScore} className="h-2 mb-2" />
           <p className="text-xs text-muted-foreground">
-            Great! Your safety settings are well configured.
+            Based on your safety alerts in the last 7 days.
           </p>
-          <Button variant="link" size="sm" className="px-0 h-auto mt-2">
-            View recommendations
-          </Button>
         </Card>
 
-        {/* Activity Summary */}
         <Card className="p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-heading font-semibold">This Week</h3>
@@ -125,36 +140,15 @@ export default function Dashboard() {
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Counseling sessions</span>
-              <span className="font-semibold">3</span>
+              <span className="font-semibold">{stats.sessions}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Learning modules</span>
-              <span className="font-semibold">5</span>
+              <span className="text-sm text-muted-foreground">Learning modules completed</span>
+              <span className="font-semibold">{stats.modules}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Safety checks</span>
-              <span className="font-semibold">12</span>
-            </div>
-          </div>
-        </Card>
-
-        {/* Reminders */}
-        <Card className="p-5">
-          <h3 className="font-heading font-semibold mb-3">Upcoming Reminders</h3>
-          <div className="space-y-3">
-            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-              <Heart className="h-5 w-5 text-secondary shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">Evening wellness check</p>
-                <p className="text-xs text-muted-foreground">Today at 8:00 PM</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-              <BookOpen className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">Continue "Building Confidence" module</p>
-                <p className="text-xs text-muted-foreground">Tomorrow at 2:00 PM</p>
-              </div>
+              <span className="text-sm text-muted-foreground">Safety alerts</span>
+              <span className="font-semibold">{stats.checks}</span>
             </div>
           </div>
         </Card>
