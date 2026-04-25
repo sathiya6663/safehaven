@@ -17,24 +17,72 @@ import {
   Play
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Learning() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const userProgress = {
-    level: 5,
-    xp: 1250,
-    xpToNextLevel: 1500,
-    streak: 7,
-    totalBadges: 12,
-    completedStories: 8,
-  };
+  const [userProgress, setUserProgress] = useState({
+    level: 1,
+    xp: 0,
+    xpToNextLevel: 250,
+    streak: 0,
+    totalBadges: 0,
+    completedStories: 0,
+  });
+  const [progressRows, setProgressRows] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from("learning_progress")
+        .select("*")
+        .eq("user_id", user.id);
+      const rows = data ?? [];
+      setProgressRows(rows);
+
+      const completed = rows.filter((r) => r.status === "completed");
+      const xp = rows.reduce((sum, r) => sum + (r.progress_percentage ?? 0), 0);
+      const level = Math.max(1, Math.floor(xp / 250) + 1);
+      const xpToNextLevel = level * 250;
+      const totalBadges = rows.reduce(
+        (sum, r) => sum + (Array.isArray(r.badges_earned) ? r.badges_earned.length : 0),
+        0
+      );
+
+      // Streak: distinct consecutive days with last_accessed
+      const days = new Set(
+        rows
+          .map((r) => r.last_accessed && new Date(r.last_accessed).toDateString())
+          .filter(Boolean) as string[]
+      );
+      let streak = 0;
+      const d = new Date();
+      while (days.has(d.toDateString())) {
+        streak++;
+        d.setDate(d.getDate() - 1);
+      }
+
+      setUserProgress({
+        level,
+        xp,
+        xpToNextLevel,
+        streak,
+        totalBadges,
+        completedStories: completed.length,
+      });
+    })();
+  }, [user]);
 
   const badges = [
-    { id: 1, name: "First Steps", icon: Star, earned: true, description: "Complete your first lesson" },
-    { id: 2, name: "Week Warrior", icon: Flame, earned: true, description: "7 day learning streak" },
-    { id: 3, name: "Safety Scholar", icon: Award, earned: true, description: "Master 5 safety topics" },
-    { id: 4, name: "Quiz Champion", icon: Trophy, earned: false, description: "Score 100% on 3 quizzes" },
+    { id: 1, name: "First Steps", icon: Star, earned: userProgress.completedStories >= 1, description: "Complete your first lesson" },
+    { id: 2, name: "Week Warrior", icon: Flame, earned: userProgress.streak >= 7, description: "7 day learning streak" },
+    { id: 3, name: "Safety Scholar", icon: Award, earned: userProgress.completedStories >= 5, description: "Master 5 safety topics" },
+    { id: 4, name: "Quiz Champion", icon: Trophy, earned: progressRows.some((r) => (r.quiz_score ?? 0) >= 100), description: "Score 100% on a quiz" },
   ];
 
   const stories = [
