@@ -736,6 +736,57 @@ export type Database = {
       }
     }
     Views: {
+      community_messages_public: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          id: string | null
+          is_anonymous: boolean | null
+          is_moderated: boolean | null
+          likes_count: number | null
+          post_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_anonymous?: boolean | null
+          is_moderated?: boolean | null
+          likes_count?: number | null
+          post_id?: string | null
+          updated_at?: string | null
+          user_id?: never
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_anonymous?: boolean | null
+          is_moderated?: boolean | null
+          likes_count?: number | null
+          post_id?: string | null
+          updated_at?: string | null
+          user_id?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_messages_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_messages_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_posts_safe: {
         Row: {
           category: string | null
