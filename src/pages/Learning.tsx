@@ -85,51 +85,33 @@ export default function Learning() {
     { id: 4, name: "Quiz Champion", icon: Trophy, earned: progressRows.some((r) => (r.quiz_score ?? 0) >= 100), description: "Score 100% on a quiz" },
   ];
 
-  const stories = [
-    {
-      id: 1,
-      title: "Understanding Boundaries",
-      category: "Safety Basics",
-      progress: 100,
-      difficulty: "Beginner",
-      duration: "10 min",
-      completed: true,
-    },
-    {
-      id: 2,
-      title: "Online Safety Guide",
-      category: "Digital Safety",
-      progress: 60,
-      difficulty: "Beginner",
-      duration: "15 min",
-      completed: false,
-    },
-    {
-      id: 3,
-      title: "Building Confidence",
-      category: "Resilience",
-      progress: 0,
-      difficulty: "Intermediate",
-      duration: "20 min",
-      completed: false,
-    },
-    {
-      id: 4,
-      title: "Recognizing Warning Signs",
-      category: "Awareness",
-      progress: 0,
-      difficulty: "Intermediate",
-      duration: "18 min",
-      completed: false,
-      locked: true,
-    },
+  const storyCatalog = [
+    { id: 1, title: "Understanding Boundaries", category: "Safety Basics", difficulty: "Beginner", duration: "10 min" },
+    { id: 2, title: "Online Safety Guide", category: "Digital Safety", difficulty: "Beginner", duration: "15 min" },
+    { id: 3, title: "Building Confidence", category: "Resilience", difficulty: "Intermediate", duration: "20 min" },
+    { id: 4, title: "Recognizing Warning Signs", category: "Awareness", difficulty: "Intermediate", duration: "18 min", locked: true },
   ];
 
-  const quizzes = [
-    { id: 1, title: "Safety Basics Quiz", questions: 10, bestScore: 90, attempts: 3 },
-    { id: 2, title: "Online Safety Quiz", questions: 15, bestScore: 85, attempts: 2 },
-    { id: 3, title: "Boundaries Quiz", questions: 12, bestScore: null, attempts: 0 },
+  const stories = storyCatalog.map((s) => {
+    const row = progressRows.find((r) => r.module_type === "story" && r.module_id === String(s.id));
+    const progress = row?.progress_percentage ?? 0;
+    return { ...s, progress, completed: row?.status === "completed" };
+  });
+
+  const quizCatalog = [
+    { id: 1, title: "Safety Basics Quiz", questions: 10 },
+    { id: 2, title: "Online Safety Quiz", questions: 15 },
+    { id: 3, title: "Boundaries Quiz", questions: 12 },
   ];
+
+  const quizzes = quizCatalog.map((q) => {
+    const row = progressRows.find((r) => r.module_type === "quiz" && r.module_id === String(q.id));
+    return {
+      ...q,
+      bestScore: row?.quiz_score ?? null,
+      attempts: row ? 1 : 0,
+    };
+  });
 
   return (
     <div className="min-h-screen bg-background pb-20">
