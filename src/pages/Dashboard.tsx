@@ -3,7 +3,7 @@ import { Header } from "@/components/layout/Header";
 import { BottomTabBar } from "@/components/layout/BottomTabBar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Heart, BookOpen, Shield, MessageCircle, MapPin, Calendar, TrendingUp } from "lucide-react";
+import { Heart, BookOpen, Shield, MessageCircle, MapPin, Calendar, TrendingUp, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import { RiskScoreCard } from "@/components/RiskScoreCard";
@@ -11,6 +11,16 @@ import { RecentAlerts } from "@/components/RecentAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+const MOODS: { emoji: string; label: string; state: "happy" | "calm" | "neutral" | "anxious" | "sad" }[] = [
+  { emoji: "😊", label: "Happy", state: "happy" },
+  { emoji: "😐", label: "Okay", state: "neutral" },
+  { emoji: "😔", label: "Down", state: "sad" },
+  { emoji: "😰", label: "Anxious", state: "anxious" },
+  { emoji: "😢", label: "Sad", state: "sad" },
+];
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -21,13 +31,18 @@ export default function Dashboard() {
 
   const [stats, setStats] = useState({ sessions: 0, modules: 0, checks: 0 });
   const [safetyScore, setSafetyScore] = useState<number>(95);
+  const [todayMood, setTodayMood] = useState<string | null>(null);
+  const [savingMood, setSavingMood] = useState(false);
 
+  // Load weekly stats + check whether user already logged today's mood
   useEffect(() => {
     if (!user) return;
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
 
     (async () => {
-      const [sessionsRes, modulesRes, checksRes, alertsRes] = await Promise.all([
+      const [sessionsRes, modulesRes, checksRes, alertsRes, todayRes] = await Promise.all([
         supabase.from("counseling_sessions").select("id", { count: "exact", head: true })
           .eq("user_id", user.id).gte("created_at", since),
         supabase.from("learning_progress").select("id", { count: "exact", head: true })
@@ -35,6 +50,10 @@ export default function Dashboard() {
         supabase.from("safety_alerts").select("id", { count: "exact", head: true })
           .eq("user_id", user.id).gte("created_at", since),
         supabase.from("safety_alerts").select("severity").eq("user_id", user.id).gte("created_at", since),
+        supabase.from("counseling_sessions").select("emotional_state, created_at")
+          .eq("user_id", user.id).eq("topic", "Daily Check-in")
+          .gte("created_at", startOfDay.toISOString())
+          .order("created_at", { ascending: false }).limit(1),
       ]);
 
       setStats({
@@ -48,8 +67,32 @@ export default function Dashboard() {
       const high = recent.filter((a) => a.severity === "high").length;
       const med = recent.filter((a) => a.severity === "medium").length;
       setSafetyScore(Math.max(20, 100 - (crit * 20 + high * 10 + med * 5)));
+
+      if (todayRes.data && todayRes.data.length > 0) {
+        setTodayMood(todayRes.data[0].emotional_state ?? null);
+      }
     })();
   }, [user]);
+
+  const handleMood = async (mood: typeof MOODS[number]) => {
+    if (!user || savingMood) return;
+    setSavingMood(true);
+    const { error } = await supabase.from("counseling_sessions").insert({
+      user_id: user.id,
+      session_date: new Date().toISOString(),
+      topic: "Daily Check-in",
+      emotional_state: mood.state,
+      duration_minutes: 0,
+    });
+    setSavingMood(false);
+    if (error) {
+      toast.error("Couldn't save check-in", { description: error.message });
+      return;
+    }
+    setTodayMood(mood.state);
+    setStats((s) => ({ ...s, sessions: s.sessions + 1 }));
+    toast.success(`Logged: ${mood.label} ${mood.emoji}`);
+  };
 
   const displayName = profile?.full_name?.split(" ")[0] ?? "";
 
@@ -68,19 +111,40 @@ export default function Dashboard() {
         <RiskScoreCard />
 
         <Card className="p-5 gradient-primary">
-          <h3 className="font-heading font-semibold text-primary-foreground mb-3">Daily Check-in</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-heading font-semibold text-primary-foreground">Daily Check-in</h3>
+            {todayMood && (
+              <span className="flex items-center gap-1 text-xs text-primary-foreground/90">
+                <Check className="h-3 w-3" /> Logged today
+              </span>
+            )}
+          </div>
           <p className="text-sm text-primary-foreground/90 mb-4">
-            Take a moment to reflect on your emotions
+            {todayMood
+              ? "You can update your mood by tapping a different emoji."
+              : "Take a moment to reflect on your emotions"}
           </p>
           <div className="flex gap-2">
-            {["😊", "😐", "😔", "😰", "😢"].map((emoji, i) => (
-              <button
-                key={i}
-                className="flex-1 p-3 rounded-lg bg-primary-foreground/20 hover:bg-primary-foreground/30 transition-colors text-2xl backdrop-blur"
-              >
-                {emoji}
-              </button>
-            ))}
+            {MOODS.map((mood) => {
+              const selected = todayMood === mood.state;
+              return (
+                <button
+                  key={mood.label}
+                  type="button"
+                  disabled={savingMood}
+                  onClick={() => handleMood(mood)}
+                  aria-label={`Log mood: ${mood.label}`}
+                  className={cn(
+                    "flex-1 p-3 rounded-lg transition-all text-2xl backdrop-blur disabled:opacity-50",
+                    selected
+                      ? "bg-primary-foreground/40 ring-2 ring-primary-foreground scale-105"
+                      : "bg-primary-foreground/20 hover:bg-primary-foreground/30 active:scale-95",
+                  )}
+                >
+                  {mood.emoji}
+                </button>
+              );
+            })}
           </div>
         </Card>
 

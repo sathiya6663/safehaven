@@ -27,13 +27,27 @@ export function useAICounseling(userType: 'adult' | 'minor' | 'guardian' = 'adul
     setCrisisDetected(false);
 
     try {
+      // Use the user's actual session JWT so the edge function can identify them.
+      // The anon publishable key is NOT a user token and causes getUser() → 401.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        toast({
+          title: "Please sign in",
+          description: "Your session has expired. Sign in again to chat.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-counseling-chat`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({ 
             messages, 
@@ -44,6 +58,14 @@ export function useAICounseling(userType: 'adult' | 'minor' | 'guardian' = 'adul
       );
 
       if (!response.ok) {
+        if (response.status === 401) {
+          toast({
+            title: "Please sign in",
+            description: "Your session has expired. Sign in again to chat.",
+            variant: "destructive",
+          });
+          return;
+        }
         if (response.status === 429) {
           toast({
             title: "Please slow down",
@@ -60,7 +82,14 @@ export function useAICounseling(userType: 'adult' | 'minor' | 'guardian' = 'adul
           });
           return;
         }
-        throw new Error('Failed to start counseling chat');
+        const body = await response.text().catch(() => '');
+        console.error('AI counseling chat failed', response.status, body);
+        toast({
+          title: "Couldn't reach counselor",
+          description: `Error ${response.status}. Please try again.`,
+          variant: "destructive",
+        });
+        return;
       }
 
       // Check for crisis detection in headers
