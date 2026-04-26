@@ -288,5 +288,10 @@ export function useSafetyAlerts() {
     loading,
     acknowledgeAlert,
     resolveAlert,
+    refetch: () => {
+      // Force a quick re-subscribe by toggling user effect — simplest is no-op
+      // since realtime keeps state fresh; provided for API compatibility.
+      return Promise.resolve();
+    },
   };
 }
