@@ -153,6 +153,8 @@ export default function Dashboard() {
             </div>
           </div>
         </Card>
+
+        <RecentAlerts limit={5} />
       </div>
 
       <BottomTabBar />
