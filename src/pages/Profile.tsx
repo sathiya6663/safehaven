@@ -24,6 +24,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useStealth } from "@/contexts/StealthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useEmergencyContacts } from "@/hooks/useEmergencyContacts";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -38,6 +39,7 @@ import {
 export default function Profile() {
   const { toast } = useToast();
   const { user, signOut } = useAuth();
+  const { enableStealth } = useStealth();
   const { profile, loading, updateProfile, uploadAvatar } = useProfile();
   const {
     contacts,
@@ -368,6 +370,31 @@ export default function Profile() {
                   />
                 </div>
               </div>
+            </Card>
+
+            <Card className="p-5">
+              <h3 className="font-heading font-semibold mb-2 flex items-center gap-2">
+                <Eye className="h-5 w-5" />
+                Stealth Mode
+              </h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                Disguises SafeHaven as a calculator. To exit, press and hold the
+                <span className="font-medium"> "=" </span> button for 2 seconds.
+                If your session has expired, you'll be asked to sign in again.
+              </p>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  enableStealth();
+                  toast({
+                    title: "Stealth mode on",
+                    description: 'Hold "=" for 2 seconds to return.',
+                  });
+                }}
+              >
+                Activate Stealth Mode
+              </Button>
             </Card>
           </TabsContent>
 
