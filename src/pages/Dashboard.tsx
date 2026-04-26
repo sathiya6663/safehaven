@@ -7,6 +7,7 @@ import { Heart, BookOpen, Shield, MessageCircle, MapPin, Calendar, TrendingUp } 
 import { useNavigate } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import { RiskScoreCard } from "@/components/RiskScoreCard";
+import { RecentAlerts } from "@/components/RecentAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
