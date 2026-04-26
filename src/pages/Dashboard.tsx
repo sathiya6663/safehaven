@@ -111,19 +111,40 @@ export default function Dashboard() {
         <RiskScoreCard />
 
         <Card className="p-5 gradient-primary">
-          <h3 className="font-heading font-semibold text-primary-foreground mb-3">Daily Check-in</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-heading font-semibold text-primary-foreground">Daily Check-in</h3>
+            {todayMood && (
+              <span className="flex items-center gap-1 text-xs text-primary-foreground/90">
+                <Check className="h-3 w-3" /> Logged today
+              </span>
+            )}
+          </div>
           <p className="text-sm text-primary-foreground/90 mb-4">
-            Take a moment to reflect on your emotions
+            {todayMood
+              ? "You can update your mood by tapping a different emoji."
+              : "Take a moment to reflect on your emotions"}
           </p>
           <div className="flex gap-2">
-            {["😊", "😐", "😔", "😰", "😢"].map((emoji, i) => (
-              <button
-                key={i}
-                className="flex-1 p-3 rounded-lg bg-primary-foreground/20 hover:bg-primary-foreground/30 transition-colors text-2xl backdrop-blur"
-              >
-                {emoji}
-              </button>
-            ))}
+            {MOODS.map((mood) => {
+              const selected = todayMood === mood.state;
+              return (
+                <button
+                  key={mood.label}
+                  type="button"
+                  disabled={savingMood}
+                  onClick={() => handleMood(mood)}
+                  aria-label={`Log mood: ${mood.label}`}
+                  className={cn(
+                    "flex-1 p-3 rounded-lg transition-all text-2xl backdrop-blur disabled:opacity-50",
+                    selected
+                      ? "bg-primary-foreground/40 ring-2 ring-primary-foreground scale-105"
+                      : "bg-primary-foreground/20 hover:bg-primary-foreground/30 active:scale-95",
+                  )}
+                >
+                  {mood.emoji}
+                </button>
+              );
+            })}
           </div>
         </Card>
 
