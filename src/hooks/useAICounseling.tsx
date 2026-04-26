@@ -27,13 +27,27 @@ export function useAICounseling(userType: 'adult' | 'minor' | 'guardian' = 'adul
     setCrisisDetected(false);
 
     try {
+      // Use the user's actual session JWT so the edge function can identify them.
+      // The anon publishable key is NOT a user token and causes getUser() → 401.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        toast({
+          title: "Please sign in",
+          description: "Your session has expired. Sign in again to chat.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-counseling-chat`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({ 
             messages, 
