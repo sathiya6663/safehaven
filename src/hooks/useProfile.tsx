@@ -14,12 +14,39 @@ export function useProfile() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      fetchProfile();
-    } else {
+    if (!user) {
       setProfile(null);
       setLoading(false);
+      return;
     }
+
+    fetchProfile();
+
+    // Realtime: keep every screen in sync when profile changes (other tab,
+    // direct Profile-page save, or background trigger).
+    const channel = supabase
+      .channel(`profile-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            setProfile(null);
+          } else {
+            setProfile(payload.new as Profile);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const fetchProfile = async () => {
