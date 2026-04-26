@@ -34,12 +34,15 @@ export default function Dashboard() {
   const [todayMood, setTodayMood] = useState<string | null>(null);
   const [savingMood, setSavingMood] = useState(false);
 
+  // Load weekly stats + check whether user already logged today's mood
   useEffect(() => {
     if (!user) return;
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
 
     (async () => {
-      const [sessionsRes, modulesRes, checksRes, alertsRes] = await Promise.all([
+      const [sessionsRes, modulesRes, checksRes, alertsRes, todayRes] = await Promise.all([
         supabase.from("counseling_sessions").select("id", { count: "exact", head: true })
           .eq("user_id", user.id).gte("created_at", since),
         supabase.from("learning_progress").select("id", { count: "exact", head: true })
@@ -47,6 +50,10 @@ export default function Dashboard() {
         supabase.from("safety_alerts").select("id", { count: "exact", head: true })
           .eq("user_id", user.id).gte("created_at", since),
         supabase.from("safety_alerts").select("severity").eq("user_id", user.id).gte("created_at", since),
+        supabase.from("counseling_sessions").select("emotional_state, created_at")
+          .eq("user_id", user.id).eq("topic", "Daily Check-in")
+          .gte("created_at", startOfDay.toISOString())
+          .order("created_at", { ascending: false }).limit(1),
       ]);
 
       setStats({
@@ -60,8 +67,32 @@ export default function Dashboard() {
       const high = recent.filter((a) => a.severity === "high").length;
       const med = recent.filter((a) => a.severity === "medium").length;
       setSafetyScore(Math.max(20, 100 - (crit * 20 + high * 10 + med * 5)));
+
+      if (todayRes.data && todayRes.data.length > 0) {
+        setTodayMood(todayRes.data[0].emotional_state ?? null);
+      }
     })();
   }, [user]);
+
+  const handleMood = async (mood: typeof MOODS[number]) => {
+    if (!user || savingMood) return;
+    setSavingMood(true);
+    const { error } = await supabase.from("counseling_sessions").insert({
+      user_id: user.id,
+      session_date: new Date().toISOString(),
+      topic: "Daily Check-in",
+      emotional_state: mood.state,
+      duration_minutes: 0,
+    });
+    setSavingMood(false);
+    if (error) {
+      toast.error("Couldn't save check-in", { description: error.message });
+      return;
+    }
+    setTodayMood(mood.state);
+    setStats((s) => ({ ...s, sessions: s.sessions + 1 }));
+    toast.success(`Logged: ${mood.label} ${mood.emoji}`);
+  };
 
   const displayName = profile?.full_name?.split(" ")[0] ?? "";
 
