@@ -4,11 +4,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { StealthProvider } from "./contexts/StealthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Suspense, lazy } from "react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { AICompanionWidget } from "@/components/AICompanionWidget";
+import { StealthCalculator } from "@/components/StealthCalculator";
 
 // Lazy load pages
 const Welcome = lazy(() => import("./pages/Welcome"));
@@ -45,6 +47,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <StealthProvider>
             <Suspense fallback={
               <div className="min-h-screen flex items-center justify-center">
                 <LoadingSpinner />
@@ -83,6 +86,8 @@ const App = () => (
               </Routes>
               <AICompanionWidget />
             </Suspense>
+            <StealthCalculator />
+            </StealthProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
