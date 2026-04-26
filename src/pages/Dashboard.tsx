@@ -3,7 +3,7 @@ import { Header } from "@/components/layout/Header";
 import { BottomTabBar } from "@/components/layout/BottomTabBar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Heart, BookOpen, Shield, MessageCircle, MapPin, Calendar, TrendingUp } from "lucide-react";
+import { Heart, BookOpen, Shield, MessageCircle, MapPin, Calendar, TrendingUp, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import { RiskScoreCard } from "@/components/RiskScoreCard";
@@ -11,6 +11,16 @@ import { RecentAlerts } from "@/components/RecentAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+const MOODS: { emoji: string; label: string; state: "happy" | "calm" | "neutral" | "anxious" | "sad" }[] = [
+  { emoji: "😊", label: "Happy", state: "happy" },
+  { emoji: "😐", label: "Okay", state: "neutral" },
+  { emoji: "😔", label: "Down", state: "sad" },
+  { emoji: "😰", label: "Anxious", state: "anxious" },
+  { emoji: "😢", label: "Sad", state: "sad" },
+];
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -21,6 +31,8 @@ export default function Dashboard() {
 
   const [stats, setStats] = useState({ sessions: 0, modules: 0, checks: 0 });
   const [safetyScore, setSafetyScore] = useState<number>(95);
+  const [todayMood, setTodayMood] = useState<string | null>(null);
+  const [savingMood, setSavingMood] = useState(false);
 
   useEffect(() => {
     if (!user) return;
