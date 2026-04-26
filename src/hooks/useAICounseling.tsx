@@ -58,6 +58,14 @@ export function useAICounseling(userType: 'adult' | 'minor' | 'guardian' = 'adul
       );
 
       if (!response.ok) {
+        if (response.status === 401) {
+          toast({
+            title: "Please sign in",
+            description: "Your session has expired. Sign in again to chat.",
+            variant: "destructive",
+          });
+          return;
+        }
         if (response.status === 429) {
           toast({
             title: "Please slow down",
@@ -74,7 +82,14 @@ export function useAICounseling(userType: 'adult' | 'minor' | 'guardian' = 'adul
           });
           return;
         }
-        throw new Error('Failed to start counseling chat');
+        const body = await response.text().catch(() => '');
+        console.error('AI counseling chat failed', response.status, body);
+        toast({
+          title: "Couldn't reach counselor",
+          description: `Error ${response.status}. Please try again.`,
+          variant: "destructive",
+        });
+        return;
       }
 
       // Check for crisis detection in headers
