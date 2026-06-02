@@ -650,6 +650,48 @@ export default function Profile() {
         </DialogContent>
       </Dialog>
 
+      {/* Change Password Dialog */}
+      <Dialog open={pwdDialogOpen} onOpenChange={setPwdDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="new-pwd">New password</Label>
+              <Input
+                id="new-pwd"
+                type="password"
+                autoComplete="new-password"
+                value={pwdForm.next}
+                onChange={(e) => setPwdForm({ ...pwdForm, next: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-pwd">Confirm new password</Label>
+              <Input
+                id="confirm-pwd"
+                type="password"
+                autoComplete="new-password"
+                value={pwdForm.confirm}
+                onChange={(e) => setPwdForm({ ...pwdForm, confirm: e.target.value })}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Use at least 8 characters. You'll stay signed in on this device.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPwdDialogOpen(false)} disabled={pwdSaving}>
+              Cancel
+            </Button>
+            <Button onClick={handleChangePassword} disabled={pwdSaving}>
+              {pwdSaving ? "Saving…" : "Update password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <BottomTabBar />
     </div>
   );
