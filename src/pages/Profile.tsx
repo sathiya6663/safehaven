@@ -20,11 +20,15 @@ import {
   Camera,
   Heart,
   Languages,
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStealth } from "@/contexts/StealthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useEmergencyContacts } from "@/hooks/useEmergencyContacts";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -35,6 +39,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { supportedLanguages } from "@/utils/translation";
+import { isValidPhone, INDIA_EMERGENCY, dialNumber } from "@/lib/india-emergency";
 
 export default function Profile() {
   const { toast } = useToast();
@@ -49,6 +63,7 @@ export default function Profile() {
     deleteContact,
   } = useEmergencyContacts();
 
+  const { theme, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -76,6 +91,14 @@ export default function Profile() {
     is_primary: false,
   });
 
+  // Change-password dialog state
+  const [pwdDialogOpen, setPwdDialogOpen] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ next: "", confirm: "" });
+  const [pwdSaving, setPwdSaving] = useState(false);
+
+  // Language state — synced with profile.preferred_language
+  const [language, setLanguage] = useState<string>(() => localStorage.getItem("preferredLanguage") || "en");
+
   useEffect(() => {
     if (profile) {
       setForm({
@@ -84,8 +107,49 @@ export default function Profile() {
         bio: profile.bio ?? "",
         location: profile.location ?? "",
       });
+      const lang = (profile as any).preferred_language as string | undefined;
+      if (lang && lang !== language) {
+        setLanguage(lang);
+        applyLanguageToDocument(lang);
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
+
+  function applyLanguageToDocument(code: string) {
+    const lang = supportedLanguages.find((l) => l.code === code);
+    document.documentElement.lang = code;
+    document.documentElement.dir = lang?.rtl ? "rtl" : "ltr";
+    localStorage.setItem("preferredLanguage", code);
+  }
+
+  const handleLanguageChange = async (code: string) => {
+    setLanguage(code);
+    applyLanguageToDocument(code);
+    await updateProfile({ preferred_language: code } as any);
+    toast({ title: "Language updated", description: supportedLanguages.find((l) => l.code === code)?.name });
+  };
+
+  const handleChangePassword = async () => {
+    if (pwdForm.next.length < 8) {
+      toast({ title: "Password too short", description: "Use at least 8 characters.", variant: "destructive" });
+      return;
+    }
+    if (pwdForm.next !== pwdForm.confirm) {
+      toast({ title: "Passwords don't match", variant: "destructive" });
+      return;
+    }
+    setPwdSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: pwdForm.next });
+    setPwdSaving(false);
+    if (error) {
+      toast({ title: "Couldn't change password", description: error.message, variant: "destructive" });
+      return;
+    }
+    setPwdDialogOpen(false);
+    setPwdForm({ next: "", confirm: "" });
+    toast({ title: "Password updated" });
+  };
 
   const handleSave = async () => {
     const { error } = await updateProfile(form);
@@ -127,8 +191,16 @@ export default function Profile() {
   };
 
   const handleSaveContact = async () => {
-    if (!contactForm.contact_name || !contactForm.contact_phone || !contactForm.relationship) {
+    if (!contactForm.contact_name.trim() || !contactForm.contact_phone.trim() || !contactForm.relationship.trim()) {
       toast({ title: "Missing info", description: "Name, phone, and relationship required", variant: "destructive" });
+      return;
+    }
+    if (!isValidPhone(contactForm.contact_phone)) {
+      toast({
+        title: "Invalid phone number",
+        description: "Use a valid Indian mobile (e.g. +91 98765 43210) or international E.164 number.",
+        variant: "destructive",
+      });
       return;
     }
     if (editingContactId) {
@@ -264,20 +336,41 @@ export default function Profile() {
                 Preferences
               </h3>
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <Label>Language</Label>
-                    <p className="text-sm text-muted-foreground">English (US)</p>
+                    <p className="text-sm text-muted-foreground">
+                      Applied across the app
+                    </p>
                   </div>
-                  <Button variant="outline" size="sm">Change</Button>
+                  <Select value={language} onValueChange={handleLanguageChange}>
+                    <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {supportedLanguages.map((l) => (
+                        <SelectItem key={l.code} value={l.code}>
+                          <span className="flex items-center gap-2">
+                            <span>{l.flag}</span>
+                            <span>{l.name}</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Separator />
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <Label>Theme</Label>
-                    <p className="text-sm text-muted-foreground">Light Mode</p>
+                    <p className="text-sm text-muted-foreground">Persists across devices</p>
                   </div>
-                  <Button variant="outline" size="sm">Change</Button>
+                  <Select value={theme} onValueChange={(v) => setTheme(v as any)}>
+                    <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light"><span className="flex items-center gap-2"><Sun className="h-4 w-4" /> Light</span></SelectItem>
+                      <SelectItem value="dark"><span className="flex items-center gap-2"><Moon className="h-4 w-4" /> Dark</span></SelectItem>
+                      <SelectItem value="system"><span className="flex items-center gap-2"><Monitor className="h-4 w-4" /> System</span></SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </Card>
@@ -288,13 +381,22 @@ export default function Profile() {
                 Account Security
               </h3>
               <div className="space-y-3">
-                <Button variant="outline" className="w-full justify-start">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => setPwdDialogOpen(true)}
+                >
                   <Lock className="mr-2 h-4 w-4" />
                   Change Password
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  disabled
+                  title="Two-factor authentication ships in Phase 5"
+                >
                   <Shield className="mr-2 h-4 w-4" />
-                  Two-Factor Authentication
+                  Two-Factor Authentication (coming in Phase 5)
                 </Button>
               </div>
             </Card>
@@ -463,20 +565,23 @@ export default function Profile() {
             <Card className="p-5 bg-emergency/5 border-emergency/20">
               <h3 className="font-heading font-semibold mb-2 flex items-center gap-2">
                 <Heart className="h-5 w-5 text-emergency" />
-                Crisis Resources
+                Crisis Resources (India)
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Quick access to emergency support services
+                Tap to call instantly. Available 24/7.
               </p>
               <div className="space-y-2">
-                <Button variant="outline" className="w-full justify-start">
-                  National Suicide Prevention Lifeline
+                <Button variant="outline" className="w-full justify-start" onClick={() => dialNumber(INDIA_EMERGENCY.NATIONAL)}>
+                  <Phone className="mr-2 h-4 w-4" /> National Emergency · {INDIA_EMERGENCY.NATIONAL}
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  Crisis Text Line
+                <Button variant="outline" className="w-full justify-start" onClick={() => dialNumber(INDIA_EMERGENCY.WOMEN_HELPLINE)}>
+                  <Phone className="mr-2 h-4 w-4" /> Women Helpline · {INDIA_EMERGENCY.WOMEN_HELPLINE}
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  Local Emergency Services
+                <Button variant="outline" className="w-full justify-start" onClick={() => dialNumber(INDIA_EMERGENCY.CHILD_HELPLINE)}>
+                  <Phone className="mr-2 h-4 w-4" /> Child Helpline · {INDIA_EMERGENCY.CHILD_HELPLINE}
+                </Button>
+                <Button variant="outline" className="w-full justify-start" onClick={() => dialNumber(INDIA_EMERGENCY.CRISIS_MENTAL_HEALTH)}>
+                  <Phone className="mr-2 h-4 w-4" /> iCall Mental-Health Support
                 </Button>
               </div>
             </Card>
@@ -541,6 +646,48 @@ export default function Profile() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setContactDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveContact}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Password Dialog */}
+      <Dialog open={pwdDialogOpen} onOpenChange={setPwdDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="new-pwd">New password</Label>
+              <Input
+                id="new-pwd"
+                type="password"
+                autoComplete="new-password"
+                value={pwdForm.next}
+                onChange={(e) => setPwdForm({ ...pwdForm, next: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-pwd">Confirm new password</Label>
+              <Input
+                id="confirm-pwd"
+                type="password"
+                autoComplete="new-password"
+                value={pwdForm.confirm}
+                onChange={(e) => setPwdForm({ ...pwdForm, confirm: e.target.value })}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Use at least 8 characters. You'll stay signed in on this device.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPwdDialogOpen(false)} disabled={pwdSaving}>
+              Cancel
+            </Button>
+            <Button onClick={handleChangePassword} disabled={pwdSaving}>
+              {pwdSaving ? "Saving…" : "Update password"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -27,7 +27,16 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { profile } = useProfile();
   const currentHour = new Date().getHours();
-  const greeting = currentHour < 12 ? "Good morning" : currentHour < 18 ? "Good afternoon" : "Good evening";
+  const greeting =
+    currentHour < 5
+      ? "Good night"
+      : currentHour < 12
+        ? "Good morning"
+        : currentHour < 17
+          ? "Good afternoon"
+          : currentHour < 21
+            ? "Good evening"
+            : "Good night";
 
   const [stats, setStats] = useState({ sessions: 0, modules: 0, checks: 0 });
   const [safetyScore, setSafetyScore] = useState<number>(95);

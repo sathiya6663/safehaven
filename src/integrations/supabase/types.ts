@@ -463,6 +463,8 @@ export type Database = {
           id: string
           location: string | null
           phone_number: string | null
+          preferred_language: string
+          theme: string
           updated_at: string | null
           user_id: string
           user_type: Database["public"]["Enums"]["user_type"]
@@ -477,6 +479,8 @@ export type Database = {
           id?: string
           location?: string | null
           phone_number?: string | null
+          preferred_language?: string
+          theme?: string
           updated_at?: string | null
           user_id: string
           user_type: Database["public"]["Enums"]["user_type"]
@@ -491,6 +495,8 @@ export type Database = {
           id?: string
           location?: string | null
           phone_number?: string | null
+          preferred_language?: string
+          theme?: string
           updated_at?: string | null
           user_id?: string
           user_type?: Database["public"]["Enums"]["user_type"]

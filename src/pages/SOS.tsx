@@ -9,7 +9,9 @@ import { AlertCircle, Phone, MapPin, Shield, Volume2, VolumeX, Clock, Camera, Mi
 import { useNavigate } from "react-router-dom";
 import { useSOSCapture } from "@/hooks/useSOSCapture";
 import { useGeolocation } from "@/hooks/useGeolocation";
+import { useEmergencyContacts } from "@/hooks/useEmergencyContacts";
 import { useToast } from "@/hooks/use-toast";
+import { INDIA_EMERGENCY, dialNumber } from "@/lib/india-emergency";
 
 export default function SOS() {
   const navigate = useNavigate();
@@ -21,12 +23,8 @@ export default function SOS() {
   const [captureStatus, setCaptureStatus] = useState<"idle" | "capturing" | "done" | "offline">("idle");
   const { triggerSOS, syncOfflineQueue } = useSOSCapture();
   const { location, getCurrentLocation } = useGeolocation();
+  const { contacts: emergencyContacts } = useEmergencyContacts();
   const { toast } = useToast();
-
-  const emergencyContacts = [
-    { name: "Mom", phone: "(555) 123-4567" },
-    { name: "Emergency Contact", phone: "(555) 987-6543" },
-  ];
 
   // Sync any offline-queued SOS events on mount
   useEffect(() => {
@@ -206,30 +204,42 @@ export default function SOS() {
           <Card>
             <CardContent className="pt-6">
               <h3 className="font-semibold mb-3">Emergency Contacts</h3>
-              <div className="space-y-2">
-                {emergencyContacts.map((contact, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-3 rounded-lg border"
-                  >
-                    <div>
-                      <p className="font-medium">{contact.name}</p>
-                      <p className="text-sm text-muted-foreground">{contact.phone}</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        // TODO: Implement direct call in Phase 7
-                        console.log(`Calling ${contact.phone}`);
-                      }}
+              {emergencyContacts.length === 0 ? (
+                <div className="text-sm text-muted-foreground space-y-2">
+                  <p>You haven't added any emergency contacts yet.</p>
+                  <Button size="sm" variant="outline" onClick={() => navigate("/profile")}>
+                    Add contacts in Profile
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {emergencyContacts.map((contact) => (
+                    <div
+                      key={contact.id}
+                      className="flex items-center justify-between p-3 rounded-lg border"
                     >
-                      <Phone className="h-4 w-4 mr-2" />
-                      Call
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                      <div>
+                        <p className="font-medium">
+                          {contact.contact_name}
+                          {contact.is_primary && (
+                            <span className="ml-2 text-xs text-primary">(Primary)</span>
+                          )}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{contact.contact_phone}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => dialNumber(contact.contact_phone)}
+                        aria-label={`Call ${contact.contact_name}`}
+                      >
+                        <Phone className="h-4 w-4 mr-2" />
+                        Call
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -238,15 +248,25 @@ export default function SOS() {
               variant="outline"
               size="lg"
               className="justify-start gap-3"
-              onClick={() => {
-                // TODO: Implement emergency call in Phase 7
-                console.log("Calling 911");
-              }}
+              onClick={() => dialNumber(INDIA_EMERGENCY.NATIONAL)}
             >
               <Phone className="h-5 w-5" />
               <div className="text-left">
                 <p className="font-semibold">Call Emergency Services</p>
-                <p className="text-xs text-muted-foreground">911 / Local Emergency</p>
+                <p className="text-xs text-muted-foreground">{INDIA_EMERGENCY.NATIONAL} · National Emergency (India)</p>
+              </div>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="lg"
+              className="justify-start gap-3"
+              onClick={() => dialNumber(INDIA_EMERGENCY.POLICE)}
+            >
+              <Shield className="h-5 w-5" />
+              <div className="text-left">
+                <p className="font-semibold">Call Police</p>
+                <p className="text-xs text-muted-foreground">{INDIA_EMERGENCY.POLICE}</p>
               </div>
             </Button>
 
@@ -256,7 +276,7 @@ export default function SOS() {
               className="justify-start gap-3"
               onClick={() => navigate('/emergency')}
             >
-              <Shield className="h-5 w-5" />
+              <MapPin className="h-5 w-5" />
               <div className="text-left">
                 <p className="font-semibold">Safe Spaces Nearby</p>
                 <p className="text-xs text-muted-foreground">Police stations, hospitals</p>
