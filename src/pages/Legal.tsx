@@ -63,7 +63,7 @@ export default function Legal() {
     {
       id: 1,
       title: "Emergency Situations",
-      steps: ["Call 911 immediately", "Get to a safe location", "Don't destroy evidence", "Contact trusted adult"],
+      steps: ["Call 112 immediately", "Get to a safe location", "Don't destroy evidence", "Contact trusted adult"],
     },
     {
       id: 2,
