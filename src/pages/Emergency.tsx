@@ -6,22 +6,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Phone, 
-  MapPin, 
-  Hospital, 
-  Shield as PoliceIcon, 
-  Heart, 
+import {
+  Phone,
+  MapPin,
+  Hospital,
+  Shield as PoliceIcon,
+  Heart,
   Search,
   Navigation,
   Star,
-  Clock
+  Clock,
+  Flame,
 } from "lucide-react";
+import { INDIA_EMERGENCY, dialNumber } from "@/lib/india-emergency";
 
 interface EmergencyService {
   id: number;
   name: string;
-  type: "police" | "hospital" | "ngo";
+  type: "police" | "hospital" | "ngo" | "fire";
   phone: string;
   address: string;
   distance: string;
@@ -33,10 +35,12 @@ export default function Emergency() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const emergencyNumbers = [
-    { name: "Emergency Services", number: "911", icon: Phone, color: "text-emergency" },
-    { name: "Police", number: "911", icon: PoliceIcon, color: "text-primary" },
-    { name: "Ambulance", number: "911", icon: Hospital, color: "text-accent" },
-    { name: "Crisis Helpline", number: "988", icon: Heart, color: "text-secondary" },
+    { name: "National Emergency", number: INDIA_EMERGENCY.NATIONAL, icon: Phone, color: "text-emergency" },
+    { name: "Police", number: INDIA_EMERGENCY.POLICE, icon: PoliceIcon, color: "text-primary" },
+    { name: "Ambulance", number: INDIA_EMERGENCY.AMBULANCE, icon: Hospital, color: "text-accent" },
+    { name: "Fire", number: INDIA_EMERGENCY.FIRE, icon: Flame, color: "text-emergency" },
+    { name: "Women Helpline", number: INDIA_EMERGENCY.WOMEN_HELPLINE, icon: Heart, color: "text-secondary" },
+    { name: "Child Helpline", number: INDIA_EMERGENCY.CHILD_HELPLINE, icon: Heart, color: "text-secondary" },
   ];
 
   const services: EmergencyService[] = [
