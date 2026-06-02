@@ -20,11 +20,15 @@ import {
   Camera,
   Heart,
   Languages,
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStealth } from "@/contexts/StealthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useEmergencyContacts } from "@/hooks/useEmergencyContacts";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -35,6 +39,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { supportedLanguages } from "@/utils/translation";
+import { isValidPhone, INDIA_EMERGENCY, dialNumber } from "@/lib/india-emergency";
 
 export default function Profile() {
   const { toast } = useToast();
@@ -49,6 +63,7 @@ export default function Profile() {
     deleteContact,
   } = useEmergencyContacts();
 
+  const { theme, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -76,6 +91,14 @@ export default function Profile() {
     is_primary: false,
   });
 
+  // Change-password dialog state
+  const [pwdDialogOpen, setPwdDialogOpen] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ next: "", confirm: "" });
+  const [pwdSaving, setPwdSaving] = useState(false);
+
+  // Language state — synced with profile.preferred_language
+  const [language, setLanguage] = useState<string>(() => localStorage.getItem("preferredLanguage") || "en");
+
   useEffect(() => {
     if (profile) {
       setForm({
@@ -84,8 +107,49 @@ export default function Profile() {
         bio: profile.bio ?? "",
         location: profile.location ?? "",
       });
+      const lang = (profile as any).preferred_language as string | undefined;
+      if (lang && lang !== language) {
+        setLanguage(lang);
+        applyLanguageToDocument(lang);
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
+
+  function applyLanguageToDocument(code: string) {
+    const lang = supportedLanguages.find((l) => l.code === code);
+    document.documentElement.lang = code;
+    document.documentElement.dir = lang?.rtl ? "rtl" : "ltr";
+    localStorage.setItem("preferredLanguage", code);
+  }
+
+  const handleLanguageChange = async (code: string) => {
+    setLanguage(code);
+    applyLanguageToDocument(code);
+    await updateProfile({ preferred_language: code } as any);
+    toast({ title: "Language updated", description: supportedLanguages.find((l) => l.code === code)?.name });
+  };
+
+  const handleChangePassword = async () => {
+    if (pwdForm.next.length < 8) {
+      toast({ title: "Password too short", description: "Use at least 8 characters.", variant: "destructive" });
+      return;
+    }
+    if (pwdForm.next !== pwdForm.confirm) {
+      toast({ title: "Passwords don't match", variant: "destructive" });
+      return;
+    }
+    setPwdSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: pwdForm.next });
+    setPwdSaving(false);
+    if (error) {
+      toast({ title: "Couldn't change password", description: error.message, variant: "destructive" });
+      return;
+    }
+    setPwdDialogOpen(false);
+    setPwdForm({ next: "", confirm: "" });
+    toast({ title: "Password updated" });
+  };
 
   const handleSave = async () => {
     const { error } = await updateProfile(form);
