@@ -121,7 +121,7 @@ Provide ONLY the translated text, nothing else.`;
       JSON.stringify({ 
         originalText: text,
         translatedText,
-        targetLanguage,
+        targetLanguage: normalizedLang,
         contentType 
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
