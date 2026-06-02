@@ -127,7 +127,7 @@ If you detect concerns about dependent safety or guardian distress, flag appropr
     }
 
     // Check for crisis keywords in the last user message
-    const lastUserMessage = messages[messages.length - 1]?.content?.toLowerCase() || '';
+    const lastUserMessage = trimmedMessages[trimmedMessages.length - 1]?.content?.toLowerCase() || '';
     const crisisDetected = crisisKeywords.some(keyword => lastUserMessage.includes(keyword));
 
     if (crisisDetected) {
