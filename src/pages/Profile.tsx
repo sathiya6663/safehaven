@@ -565,20 +565,23 @@ export default function Profile() {
             <Card className="p-5 bg-emergency/5 border-emergency/20">
               <h3 className="font-heading font-semibold mb-2 flex items-center gap-2">
                 <Heart className="h-5 w-5 text-emergency" />
-                Crisis Resources
+                Crisis Resources (India)
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Quick access to emergency support services
+                Tap to call instantly. Available 24/7.
               </p>
               <div className="space-y-2">
-                <Button variant="outline" className="w-full justify-start">
-                  National Suicide Prevention Lifeline
+                <Button variant="outline" className="w-full justify-start" onClick={() => dialNumber(INDIA_EMERGENCY.NATIONAL)}>
+                  <Phone className="mr-2 h-4 w-4" /> National Emergency · {INDIA_EMERGENCY.NATIONAL}
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  Crisis Text Line
+                <Button variant="outline" className="w-full justify-start" onClick={() => dialNumber(INDIA_EMERGENCY.WOMEN_HELPLINE)}>
+                  <Phone className="mr-2 h-4 w-4" /> Women Helpline · {INDIA_EMERGENCY.WOMEN_HELPLINE}
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  Local Emergency Services
+                <Button variant="outline" className="w-full justify-start" onClick={() => dialNumber(INDIA_EMERGENCY.CHILD_HELPLINE)}>
+                  <Phone className="mr-2 h-4 w-4" /> Child Helpline · {INDIA_EMERGENCY.CHILD_HELPLINE}
+                </Button>
+                <Button variant="outline" className="w-full justify-start" onClick={() => dialNumber(INDIA_EMERGENCY.CRISIS_MENTAL_HEALTH)}>
+                  <Phone className="mr-2 h-4 w-4" /> iCall Mental-Health Support
                 </Button>
               </div>
             </Card>
