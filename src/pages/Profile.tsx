@@ -336,20 +336,41 @@ export default function Profile() {
                 Preferences
               </h3>
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <Label>Language</Label>
-                    <p className="text-sm text-muted-foreground">English (US)</p>
+                    <p className="text-sm text-muted-foreground">
+                      Applied across the app
+                    </p>
                   </div>
-                  <Button variant="outline" size="sm">Change</Button>
+                  <Select value={language} onValueChange={handleLanguageChange}>
+                    <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {supportedLanguages.map((l) => (
+                        <SelectItem key={l.code} value={l.code}>
+                          <span className="flex items-center gap-2">
+                            <span>{l.flag}</span>
+                            <span>{l.name}</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Separator />
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <Label>Theme</Label>
-                    <p className="text-sm text-muted-foreground">Light Mode</p>
+                    <p className="text-sm text-muted-foreground">Persists across devices</p>
                   </div>
-                  <Button variant="outline" size="sm">Change</Button>
+                  <Select value={theme} onValueChange={(v) => setTheme(v as any)}>
+                    <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light"><span className="flex items-center gap-2"><Sun className="h-4 w-4" /> Light</span></SelectItem>
+                      <SelectItem value="dark"><span className="flex items-center gap-2"><Moon className="h-4 w-4" /> Dark</span></SelectItem>
+                      <SelectItem value="system"><span className="flex items-center gap-2"><Monitor className="h-4 w-4" /> System</span></SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </Card>
@@ -360,13 +381,22 @@ export default function Profile() {
                 Account Security
               </h3>
               <div className="space-y-3">
-                <Button variant="outline" className="w-full justify-start">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => setPwdDialogOpen(true)}
+                >
                   <Lock className="mr-2 h-4 w-4" />
                   Change Password
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  disabled
+                  title="Two-factor authentication ships in Phase 5"
+                >
                   <Shield className="mr-2 h-4 w-4" />
-                  Two-Factor Authentication
+                  Two-Factor Authentication (coming in Phase 5)
                 </Button>
               </div>
             </Card>
