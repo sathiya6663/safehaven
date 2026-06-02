@@ -101,9 +101,9 @@ If you detect concerns about dependent safety or guardian distress, flag appropr
         messages: [
           { 
             role: "system", 
-            content: `${systemPrompt}\n\nCurrent emotional state: ${emotionalState || 'neutral'}. Adjust your tone accordingly.` 
+            content: `${systemPrompt}\n\nCurrent emotional state: ${safeEmotionalState}. Adjust your tone accordingly.` 
           },
-          ...messages,
+          ...trimmedMessages,
         ],
         stream: true,
         temperature: 0.7,
