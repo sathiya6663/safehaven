@@ -191,8 +191,16 @@ export default function Profile() {
   };
 
   const handleSaveContact = async () => {
-    if (!contactForm.contact_name || !contactForm.contact_phone || !contactForm.relationship) {
+    if (!contactForm.contact_name.trim() || !contactForm.contact_phone.trim() || !contactForm.relationship.trim()) {
       toast({ title: "Missing info", description: "Name, phone, and relationship required", variant: "destructive" });
+      return;
+    }
+    if (!isValidPhone(contactForm.contact_phone)) {
+      toast({
+        title: "Invalid phone number",
+        description: "Use a valid Indian mobile (e.g. +91 98765 43210) or international E.164 number.",
+        variant: "destructive",
+      });
       return;
     }
     if (editingContactId) {
