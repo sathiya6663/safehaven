@@ -43,54 +43,16 @@ export default function Emergency() {
     { name: "Child Helpline", number: INDIA_EMERGENCY.CHILD_HELPLINE, icon: Heart, color: "text-secondary" },
   ];
 
-  const services: EmergencyService[] = [
-    {
-      id: 1,
-      name: "City Police Station",
-      type: "police",
-      phone: "(555) 123-4567",
-      address: "123 Main Street, Downtown",
-      distance: "0.5 mi",
-      rating: 4.5,
-      available24x7: true,
-    },
-    {
-      id: 2,
-      name: "General Hospital",
-      type: "hospital",
-      phone: "(555) 234-5678",
-      address: "456 Health Ave",
-      distance: "1.2 mi",
-      rating: 4.8,
-      available24x7: true,
-    },
-    {
-      id: 3,
-      name: "Community Support Center",
-      type: "ngo",
-      phone: "(555) 345-6789",
-      address: "789 Safe Haven Blvd",
-      distance: "2.0 mi",
-      rating: 4.9,
-      available24x7: false,
-    },
-    {
-      id: 4,
-      name: "Community Police Outpost",
-      type: "police",
-      phone: "(555) 456-7890",
-      address: "321 Community Circle",
-      distance: "0.8 mi",
-      rating: 4.3,
-      available24x7: true,
-    },
-  ];
+  // Static placeholder service directory removed — Phase 2 wires in live
+  // OpenStreetMap/Overpass nearby-services results based on the user's GPS.
+  const services: EmergencyService[] = [];
 
   const getServiceIcon = (type: string) => {
     switch (type) {
       case "police": return PoliceIcon;
       case "hospital": return Hospital;
       case "ngo": return Heart;
+      case "fire": return Flame;
       default: return MapPin;
     }
   };
@@ -100,6 +62,7 @@ export default function Emergency() {
       case "police": return "text-primary";
       case "hospital": return "text-accent";
       case "ngo": return "text-secondary";
+      case "fire": return "text-emergency";
       default: return "text-foreground";
     }
   };
@@ -119,17 +82,17 @@ export default function Emergency() {
           <p className="text-muted-foreground">Quick access to help when you need it</p>
         </div>
 
-        {/* Quick Dial Emergency Numbers */}
+        {/* Quick Dial Emergency Numbers — India */}
         <Card className="border-emergency/20">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Phone className="h-5 w-5 text-emergency" />
-              Emergency Hotlines
+              Emergency Hotlines (India)
             </CardTitle>
             <CardDescription>Tap to call immediately</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {emergencyNumbers.map((service) => {
                 const Icon = service.icon;
                 return (
@@ -137,10 +100,8 @@ export default function Emergency() {
                     key={service.name}
                     variant="outline"
                     className="h-auto flex-col gap-2 py-4"
-                    onClick={() => {
-                      // TODO: Implement phone call in Phase 7
-                      console.log(`Calling ${service.number}`);
-                    }}
+                    onClick={() => dialNumber(service.number)}
+                    aria-label={`Call ${service.name} at ${service.number}`}
                   >
                     <Icon className={`h-6 w-6 ${service.color}`} />
                     <div className="text-center">
@@ -176,76 +137,85 @@ export default function Emergency() {
 
           {["all", "police", "hospital", "ngo"].map((tab) => (
             <TabsContent key={tab} value={tab} className="space-y-3 mt-4">
-              {filteredServices
-                .filter(service => tab === "all" || service.type === tab)
-                .map((service) => {
-                  const Icon = getServiceIcon(service.type);
-                  return (
-                    <Card key={service.id} className="hover:border-primary/50 transition-colors">
-                      <CardContent className="pt-6">
-                        <div className="flex items-start gap-4">
-                          <div className={`p-3 rounded-full bg-muted`}>
-                            <Icon className={`h-6 w-6 ${getServiceColor(service.type)}`} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <h3 className="font-semibold">{service.name}</h3>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <div className="flex items-center">
-                                    <Star className="h-3 w-3 fill-accent text-accent" />
-                                    <span className="text-sm ml-1">{service.rating}</span>
+              {filteredServices.length === 0 ? (
+                <Card>
+                  <CardContent className="py-10 text-center text-sm text-muted-foreground space-y-2">
+                    <MapPin className="h-8 w-8 mx-auto text-muted-foreground/50" />
+                    <p className="font-medium text-foreground">Nearby services unlock with live location</p>
+                    <p>
+                      We'll show police stations, hospitals and safe spaces around you on the live map.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                filteredServices
+                  .filter(service => tab === "all" || service.type === tab)
+                  .map((service) => {
+                    const Icon = getServiceIcon(service.type);
+                    return (
+                      <Card key={service.id} className="hover:border-primary/50 transition-colors">
+                        <CardContent className="pt-6">
+                          <div className="flex items-start gap-4">
+                            <div className="p-3 rounded-full bg-muted">
+                              <Icon className={`h-6 w-6 ${getServiceColor(service.type)}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <h3 className="font-semibold">{service.name}</h3>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <div className="flex items-center">
+                                      <Star className="h-3 w-3 fill-accent text-accent" />
+                                      <span className="text-sm ml-1">{service.rating}</span>
+                                    </div>
+                                    {service.available24x7 && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        <Clock className="h-3 w-3 mr-1" />
+                                        24/7
+                                      </Badge>
+                                    )}
                                   </div>
-                                  {service.available24x7 && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      <Clock className="h-3 w-3 mr-1" />
-                                      24/7
-                                    </Badge>
-                                  )}
                                 </div>
+                                <Badge variant="outline" className="flex items-center gap-1">
+                                  <Navigation className="h-3 w-3" />
+                                  {service.distance}
+                                </Badge>
                               </div>
-                              <Badge variant="outline" className="flex items-center gap-1">
-                                <Navigation className="h-3 w-3" />
-                                {service.distance}
-                              </Badge>
-                            </div>
-                            
-                            <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              {service.address}
-                            </p>
-                            
-                            <div className="flex gap-2 mt-3">
-                              <Button
-                                size="sm"
-                                className="flex-1"
-                                onClick={() => {
-                                  // TODO: Implement phone call in Phase 7
-                                  console.log(`Calling ${service.phone}`);
-                                }}
-                              >
-                                <Phone className="h-4 w-4 mr-2" />
-                                Call
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="flex-1"
-                                onClick={() => {
-                                  // TODO: Implement directions in Phase 7
-                                  console.log(`Getting directions to ${service.name}`);
-                                }}
-                              >
-                                <MapPin className="h-4 w-4 mr-2" />
-                                Directions
-                              </Button>
+
+                              <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {service.address}
+                              </p>
+
+                              <div className="flex gap-2 mt-3">
+                                <Button
+                                  size="sm"
+                                  className="flex-1"
+                                  onClick={() => dialNumber(service.phone)}
+                                >
+                                  <Phone className="h-4 w-4 mr-2" />
+                                  Call
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex-1"
+                                  onClick={() => {
+                                    const q = encodeURIComponent(service.address);
+                                    window.open(`https://www.openstreetmap.org/search?query=${q}`, "_blank");
+                                  }}
+                                >
+                                  <MapPin className="h-4 w-4 mr-2" />
+                                  Directions
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+              )}
             </TabsContent>
           ))}
         </Tabs>
