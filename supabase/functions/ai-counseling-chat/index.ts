@@ -38,6 +38,23 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
+    // Input validation
+    const MAX_MESSAGES = 20;
+    const MAX_MESSAGE_CHARS = 4_000;
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return new Response(JSON.stringify({ error: "Invalid input: messages array required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const trimmedMessages = messages.slice(-MAX_MESSAGES).map((m: any) => ({
+      role: m?.role === "assistant" ? "assistant" : "user",
+      content: typeof m?.content === "string" ? m.content.slice(0, MAX_MESSAGE_CHARS) : "",
+    })).filter((m) => m.content.length > 0);
+    if (trimmedMessages.length === 0) {
+      return new Response(JSON.stringify({ error: "Invalid input: empty messages" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const safeEmotionalState = typeof emotionalState === "string" ? emotionalState.slice(0, 80) : "neutral";
+
     // Fetch the actual user type from the database instead of trusting client
     const { data: profile } = await supabase
       .from('profiles')
@@ -84,9 +101,9 @@ If you detect concerns about dependent safety or guardian distress, flag appropr
         messages: [
           { 
             role: "system", 
-            content: `${systemPrompt}\n\nCurrent emotional state: ${emotionalState || 'neutral'}. Adjust your tone accordingly.` 
+            content: `${systemPrompt}\n\nCurrent emotional state: ${safeEmotionalState}. Adjust your tone accordingly.` 
           },
-          ...messages,
+          ...trimmedMessages,
         ],
         stream: true,
         temperature: 0.7,
@@ -110,7 +127,7 @@ If you detect concerns about dependent safety or guardian distress, flag appropr
     }
 
     // Check for crisis keywords in the last user message
-    const lastUserMessage = messages[messages.length - 1]?.content?.toLowerCase() || '';
+    const lastUserMessage = trimmedMessages[trimmedMessages.length - 1]?.content?.toLowerCase() || '';
     const crisisDetected = crisisKeywords.some(keyword => lastUserMessage.includes(keyword));
 
     if (crisisDetected) {
