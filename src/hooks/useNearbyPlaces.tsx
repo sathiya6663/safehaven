@@ -107,7 +107,47 @@ out center;
   `.trim();
 }
 
-export function useNearbyPlaces() {
+/**
+ * Public Overpass API mirrors — tried in order until one succeeds.
+ * overpass-api.de sometimes rate-limits; the mirrors are independent.
+ */
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+];
+
+/**
+ * POST an Overpass query to the first mirror that responds successfully.
+ * Falls back through all mirrors before throwing.
+ */
+async function fetchOverpass(query: string): Promise<OverpassResponse> {
+  let lastError: Error | null = null;
+
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(query)}`,
+        signal: AbortSignal.timeout(20_000), // 20s per mirror
+      });
+
+      if (!response.ok) {
+        lastError = new Error(`${endpoint} returned ${response.status}`);
+        continue; // try next mirror
+      }
+
+      const data = await response.json();
+      return data as OverpassResponse;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // network error or timeout — try next mirror
+    }
+  }
+
+  throw lastError ?? new Error('All Overpass mirrors failed');
+}
   const [places, setPlaces] = useState<NearbyPlace[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,17 +160,7 @@ export function useNearbyPlaces() {
       try {
         const query = buildOverpassQuery(coords.latitude, coords.longitude, radiusMeters);
 
-        const response = await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `data=${encodeURIComponent(query)}`,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Overpass API error: ${response.status} ${response.statusText}`);
-        }
-
-        const data: OverpassResponse = await response.json();
+        const data = await fetchOverpass(query);
 
         const placesList: NearbyPlace[] = data.elements
           .map((element) => {

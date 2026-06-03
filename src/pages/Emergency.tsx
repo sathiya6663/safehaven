@@ -33,11 +33,20 @@ export default function Emergency() {
     getCurrentLocation();
   }, [getCurrentLocation]);
 
+  // Fetch nearby places when location is available — auto-retry once on failure
   useEffect(() => {
-    if (location) {
-      fetchNearbyPlaces(location, 10000);
-    }
+    if (!location) return;
+    fetchNearbyPlaces(location, 10000);
   }, [location, fetchNearbyPlaces]);
+
+  // Auto-retry after 4 seconds if places fetch failed
+  useEffect(() => {
+    if (!placesError || !location) return;
+    const timer = setTimeout(() => {
+      fetchNearbyPlaces(location, 10000);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [placesError, location, fetchNearbyPlaces]);
 
   const emergencyNumbers = [
     { name: "National Emergency", number: INDIA_EMERGENCY.NATIONAL, icon: Phone, color: "text-emergency" },
@@ -157,18 +166,28 @@ export default function Emergency() {
         ) : null}
 
         {/* Errors */}
-        {(geoError || placesError) && (
+        {geoError && (
           <Card className="border-destructive/30 bg-destructive/5">
             <CardContent className="pt-6 flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h3 className="font-semibold text-sm text-destructive mb-1">Location Error</h3>
-                <p className="text-sm text-destructive/90">{geoError || placesError}</p>
-                {geoError && (
-                  <Button size="sm" variant="outline" className="mt-3" onClick={getCurrentLocation}>
-                    Retry Location
-                  </Button>
-                )}
+                <p className="text-sm text-destructive/90">{geoError}</p>
+                <Button size="sm" variant="outline" className="mt-3" onClick={getCurrentLocation}>
+                  Retry Location
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {placesError && !geoError && (
+          <Card className="border-yellow-500/30 bg-yellow-500/5">
+            <CardContent className="pt-4 pb-4 flex items-start gap-3">
+              <AlertCircle className="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
+                  Could not load nearby services — retrying automatically…
+                </p>
               </div>
             </CardContent>
           </Card>
