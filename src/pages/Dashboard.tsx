@@ -8,6 +8,9 @@ import { useNavigate } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import { RiskScoreCard } from "@/components/RiskScoreCard";
 import { RecentAlerts } from "@/components/RecentAlerts";
+import { MoodTrackerChart } from "@/components/MoodTrackerChart";
+import { ProgressCards } from "@/components/ProgressCards";
+import { SessionHistoryComponent } from "@/components/SessionHistoryComponent";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
@@ -38,47 +41,27 @@ export default function Dashboard() {
             ? "Good evening"
             : "Good night";
 
-  const [stats, setStats] = useState({ sessions: 0, modules: 0, checks: 0 });
-  const [safetyScore, setSafetyScore] = useState<number>(95);
   const [todayMood, setTodayMood] = useState<string | null>(null);
   const [savingMood, setSavingMood] = useState(false);
 
-  // Load weekly stats + check whether user already logged today's mood
+  // Load today's mood check-in
   useEffect(() => {
     if (!user) return;
-    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
     (async () => {
-      const [sessionsRes, modulesRes, checksRes, alertsRes, todayRes] = await Promise.all([
-        supabase.from("counseling_sessions").select("id", { count: "exact", head: true })
-          .eq("user_id", user.id).gte("created_at", since),
-        supabase.from("learning_progress").select("id", { count: "exact", head: true })
-          .eq("user_id", user.id).eq("status", "completed").gte("updated_at", since),
-        supabase.from("safety_alerts").select("id", { count: "exact", head: true })
-          .eq("user_id", user.id).gte("created_at", since),
-        supabase.from("safety_alerts").select("severity").eq("user_id", user.id).gte("created_at", since),
-        supabase.from("counseling_sessions").select("emotional_state, created_at")
-          .eq("user_id", user.id).eq("topic", "Daily Check-in")
-          .gte("created_at", startOfDay.toISOString())
-          .order("created_at", { ascending: false }).limit(1),
-      ]);
+      const { data: todayRes } = await supabase
+        .from("counseling_sessions")
+        .select("emotional_state, created_at")
+        .eq("user_id", user.id)
+        .eq("topic", "Daily Check-in")
+        .gte("created_at", startOfDay.toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1);
 
-      setStats({
-        sessions: sessionsRes.count ?? 0,
-        modules: modulesRes.count ?? 0,
-        checks: checksRes.count ?? 0,
-      });
-
-      const recent = alertsRes.data ?? [];
-      const crit = recent.filter((a) => a.severity === "critical").length;
-      const high = recent.filter((a) => a.severity === "high").length;
-      const med = recent.filter((a) => a.severity === "medium").length;
-      setSafetyScore(Math.max(20, 100 - (crit * 20 + high * 10 + med * 5)));
-
-      if (todayRes.data && todayRes.data.length > 0) {
-        setTodayMood(todayRes.data[0].emotional_state ?? null);
+      if (todayRes && todayRes.length > 0) {
+        setTodayMood(todayRes[0].emotional_state ?? null);
       }
     })();
   }, [user]);
@@ -99,7 +82,6 @@ export default function Dashboard() {
       return;
     }
     setTodayMood(mood.state);
-    setStats((s) => ({ ...s, sessions: s.sessions + 1 }));
     toast.success(`Logged: ${mood.label} ${mood.emoji}`);
   };
 
@@ -192,39 +174,31 @@ export default function Dashboard() {
           </Card>
         )}
 
+        {/* Real-time Progress Cards */}
+        <div>
+          <h2 className="font-heading font-semibold mb-3 text-lg">Your Progress</h2>
+          <ProgressCards />
+        </div>
+
+        {/* Mood Tracker with real data */}
+        <MoodTrackerChart />
+
+        {/* Recent Sessions with real data */}
+        <SessionHistoryComponent />
+
+        {/* Safety Score Card */}
         <Card className="p-5">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-heading font-semibold">Safety Score</h3>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              <span className="text-2xl font-bold text-primary">{safetyScore}%</span>
-            </div>
+            <h3 className="font-heading font-semibold">Weekly Safety Summary</h3>
+            <TrendingUp className="h-4 w-4 text-primary" />
           </div>
-          <Progress value={safetyScore} className="h-2 mb-2" />
-          <p className="text-xs text-muted-foreground">
-            Based on your safety alerts in the last 7 days.
+          <p className="text-sm text-muted-foreground mb-3">
+            Your risk score is calculated in real-time based on your mood entries, emotional state, and safety alerts.
+            The system analyzes your patterns to provide personalized recommendations.
           </p>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-heading font-semibold">This Week</h3>
-            <Calendar className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Counseling sessions</span>
-              <span className="font-semibold">{stats.sessions}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Learning modules completed</span>
-              <span className="font-semibold">{stats.modules}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Safety alerts</span>
-              <span className="font-semibold">{stats.checks}</span>
-            </div>
-          </div>
+          <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/risk-alert')}>
+            View Risk Analysis
+          </Button>
         </Card>
 
         <RecentAlerts limit={5} />
