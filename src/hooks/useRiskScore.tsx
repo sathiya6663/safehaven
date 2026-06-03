@@ -44,6 +44,53 @@ export function useRiskScore() {
         factors.push({ label: 'Evening hours', impact: -7 });
       }
 
+      // Recent mood data
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
+      const { data: moods } = await supabase
+        .from('counseling_sessions')
+        .select('emotional_state')
+        .eq('user_id', user.id)
+        .eq('topic', 'Daily Check-in')
+        .gte('created_at', sevenDaysAgo);
+
+      if (moods && moods.length > 0) {
+        const moodValues: { [key: string]: number } = {
+          happy: 5,
+          calm: 4,
+          neutral: 3,
+          anxious: 2,
+          sad: 1,
+        };
+
+        const moodScore =
+          moods.reduce((sum, m) => sum + (moodValues[m.emotional_state] || 3), 0) / moods.length;
+        
+        if (moodScore <= 1.5) {
+          score -= 20;
+          factors.push({ label: 'Very distressed emotional state', impact: -20 });
+        } else if (moodScore <= 2.5) {
+          score -= 10;
+          factors.push({ label: 'Concerning emotional state', impact: -10 });
+        } else if (moodScore >= 4.5) {
+          score += 5;
+          factors.push({ label: 'Positive emotional state', impact: 5 });
+        }
+
+        // Check for crisis in sessions
+        const { data: crisisSessions } = await supabase
+          .from('counseling_sessions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('crisis_detected', true)
+          .gte('created_at', sevenDaysAgo);
+
+        if (crisisSessions && crisisSessions.length > 0) {
+          const crisisImpact = -(crisisSessions.length * 10);
+          score += crisisImpact;
+          factors.push({ label: `${crisisSessions.length} crisis event(s) detected`, impact: crisisImpact });
+        }
+      }
+
       // Active alerts
       const { data: alerts } = await supabase
         .from('safety_alerts')
