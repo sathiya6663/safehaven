@@ -38,7 +38,7 @@ export default function Emergency() {
   // Fetch nearby places when location is available
   useEffect(() => {
     if (location) {
-      fetchNearbyPlaces(location, 5000); // 5km radius
+      fetchNearbyPlaces(location, 10000); // 10km radius
     }
   }, [location, fetchNearbyPlaces]);
 
@@ -166,7 +166,7 @@ export default function Emergency() {
                   <p className="text-sm font-medium">Location active</p>
                   <p className="text-xs text-muted-foreground">
                     {services.length > 0
-                      ? `Found ${services.length} nearby services within 5km`
+                      ? `Found ${services.length} nearby services within 10km`
                       : "Nearby services will appear here once loaded"}
                   </p>
                 </div>
@@ -229,9 +229,9 @@ export default function Emergency() {
                     ) : (
                       <>
                         <MapPin className="h-8 w-8 mx-auto text-muted-foreground/50" />
-                        <p className="font-medium text-foreground">No {tab} services found</p>
+                        <p className="font-medium text-foreground">No {tab} services found nearby</p>
                         <p>
-                          Try expanding your search radius or checking a different location.
+                          Try searching in a different area or check back later.
                         </p>
                       </>
                     )}

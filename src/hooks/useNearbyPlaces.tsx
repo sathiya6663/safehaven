@@ -29,6 +29,10 @@ type OverpassElement = {
     'opening_hours'?: string;
     operator?: string;
     amenity?: string;
+    healthcare?: string;
+    office?: string;
+    police?: string;
+    'social_facility'?: string;
   };
 };
 
@@ -62,26 +66,41 @@ function calculateDistance(
  * Build an Overpass QL query that:
  *  - outputs JSON  ([out:json] — critical, otherwise Overpass returns XML)
  *  - uses `around:radius,lat,lon` for accurate radial search
+ *  - covers Indian OSM tagging conventions for police, hospitals, shelters
  *  - requests center coordinates for way/relation results
  */
 function buildOverpassQuery(
   latitude: number,
   longitude: number,
-  radiusMeters: number = 5000
+  radiusMeters: number = 10000
 ): string {
   const r = radiusMeters;
   const c = `${latitude},${longitude}`;
   return `
-[out:json][timeout:25];
+[out:json][timeout:30];
 (
   node["amenity"="hospital"](around:${r},${c});
-  node["amenity"="police"](around:${r},${c});
-  node["amenity"="shelter"](around:${r},${c});
+  node["amenity"="clinic"](around:${r},${c});
+  node["amenity"="doctors"](around:${r},${c});
+  node["healthcare"="hospital"](around:${r},${c});
+  node["healthcare"="clinic"](around:${r},${c});
   way["amenity"="hospital"](around:${r},${c});
-  way["amenity"="police"](around:${r},${c});
-  way["amenity"="shelter"](around:${r},${c});
+  way["amenity"="clinic"](around:${r},${c});
+  way["healthcare"="hospital"](around:${r},${c});
   relation["amenity"="hospital"](around:${r},${c});
+  node["amenity"="police"](around:${r},${c});
+  node["office"="police"](around:${r},${c});
+  node["police"="station"](around:${r},${c});
+  way["amenity"="police"](around:${r},${c});
+  way["office"="police"](around:${r},${c});
+  way["police"="station"](around:${r},${c});
   relation["amenity"="police"](around:${r},${c});
+  node["amenity"="shelter"](around:${r},${c});
+  node["social_facility"="shelter"](around:${r},${c});
+  node["amenity"="social_facility"]["social_facility"="shelter"](around:${r},${c});
+  node["amenity"="refuge"](around:${r},${c});
+  way["amenity"="shelter"](around:${r},${c});
+  way["social_facility"="shelter"](around:${r},${c});
   relation["amenity"="shelter"](around:${r},${c});
 );
 out center;
@@ -124,13 +143,37 @@ export function useNearbyPlaces() {
             const phone = element.tags?.phone;
             const openingHours = element.tags?.['opening_hours'];
             const amenity = element.tags?.amenity;
+            const healthcare = element.tags?.healthcare;
+            const office = element.tags?.office;
+            const policetag = element.tags?.police;
+            const socialFacility = element.tags?.['social_facility'];
 
             let type: 'hospital' | 'police' | 'shelter' = 'shelter';
-            if (amenity === 'hospital') type = 'hospital';
-            else if (amenity === 'police') type = 'police';
+            if (
+              amenity === 'hospital' ||
+              amenity === 'clinic' ||
+              amenity === 'doctors' ||
+              healthcare === 'hospital' ||
+              healthcare === 'clinic'
+            ) {
+              type = 'hospital';
+            } else if (
+              amenity === 'police' ||
+              office === 'police' ||
+              policetag === 'station'
+            ) {
+              type = 'police';
+            } else if (
+              amenity === 'shelter' ||
+              amenity === 'refuge' ||
+              amenity === 'social_facility' ||
+              socialFacility === 'shelter'
+            ) {
+              type = 'shelter';
+            }
 
             const distance = calculateDistance(coords.latitude, coords.longitude, lat, lon);
-            if (distance > 5) return null;
+            if (distance > 10) return null;
 
             return {
               id: `${element.id}-${type}`,
