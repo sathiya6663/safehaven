@@ -218,7 +218,7 @@ async function fetchOverpass(query: string): Promise<OverpassResponse> {
                 !openingHours ||
                 openingHours.includes('24/7') ||
                 openingHours.includes('Mo-Su'),
-            } satisfies NearbyPlace;
+            } as NearbyPlace;
           })
           .filter((p): p is NearbyPlace => p !== null);
 
