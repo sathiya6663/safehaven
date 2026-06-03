@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/layout/Header";
 import { BottomTabBar } from "@/components/layout/BottomTabBar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,9 +37,12 @@ import {
   MapPin,
   Shield
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useGeolocation } from "@/hooks/useGeolocation";
 
 interface Evidence {
-  id: number;
+  id: string;
   name: string;
   type: "document" | "image" | "video" | "audio";
   category: string;
@@ -49,41 +52,67 @@ interface Evidence {
   encrypted: boolean;
 }
 
-export default function EvidenceVault() {
-  const [isRecording, setIsRecording] = useState(false);
+/** Format a GPS coordinate pair as a short readable string */
+function formatCoords(lat: number | null | undefined, lon: number | null | undefined): string {
+  if (lat == null || lon == null) return "Location unavailable";
+  return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+}
 
-  const evidence: Evidence[] = [
-    {
-      id: 1,
-      name: "Screenshot_20240115.png",
-      type: "image",
-      category: "Messages",
-      date: "2024-01-15 14:30",
-      location: "New York, NY",
-      size: "2.4 MB",
-      encrypted: true,
-    },
-    {
-      id: 2,
-      name: "Voice_Note_012.mp3",
-      type: "audio",
-      category: "Conversations",
-      date: "2024-01-14 18:45",
-      location: "New York, NY",
-      size: "1.8 MB",
-      encrypted: true,
-    },
-    {
-      id: 3,
-      name: "Incident_Report.pdf",
-      type: "document",
-      category: "Reports",
-      date: "2024-01-13 09:15",
-      location: "New York, NY",
-      size: "445 KB",
-      encrypted: true,
-    },
-  ];
+/** Parse location_data JSON from evidence_vault or sos_logs */
+function parseLocationData(locationData: unknown): string {
+  if (!locationData || typeof locationData !== "object") return "Location unavailable";
+  const d = locationData as Record<string, unknown>;
+  const lat = typeof d.latitude === "number" ? d.latitude : null;
+  const lon = typeof d.longitude === "number" ? d.longitude : null;
+  return formatCoords(lat, lon);
+}
+
+export default function EvidenceVault() {
+  const { user } = useAuth();
+  const { location, getCurrentLocation } = useGeolocation();
+  const [isRecording, setIsRecording] = useState(false);
+  const [evidence, setEvidence] = useState<Evidence[]>([]);
+
+  // Get current location for tagging new evidence
+  useEffect(() => {
+    getCurrentLocation();
+  }, [getCurrentLocation]);
+
+  // Load evidence from the evidence_vault table (real GPS via location_data JSON)
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from("evidence_vault")
+        .select("id, file_name, file_type, file_size, category, timestamp_data, location_data, is_encrypted")
+        .eq("user_id", user.id)
+        .order("timestamp_data", { ascending: false })
+        .limit(50);
+
+      if (data && data.length > 0) {
+        const items: Evidence[] = data.map((row) => ({
+          id: row.id,
+          name: row.file_name,
+          type: (["document", "image", "video", "audio"].includes(row.file_type)
+            ? row.file_type
+            : "document") as Evidence["type"],
+          category: row.category ?? "Uncategorized",
+          date: row.timestamp_data
+            ? new Date(row.timestamp_data).toLocaleString()
+            : "Unknown date",
+          location: parseLocationData(row.location_data),
+          size: row.file_size ? `${(row.file_size / 1024).toFixed(0)} KB` : "—",
+          encrypted: row.is_encrypted ?? true,
+        }));
+        setEvidence(items);
+      }
+    })();
+  }, [user]);
+
+  /** Current location label for newly captured evidence */
+  const currentLocationLabel = location
+    ? formatCoords(location.latitude, location.longitude)
+    : "Location unavailable";
 
   const getFileIcon = (type: string) => {
     switch (type) {
@@ -182,7 +211,7 @@ export default function EvidenceVault() {
                 className="h-auto flex-col gap-2 py-4"
                 onClick={() => {
                   // TODO: Implement camera capture in Phase 7
-                  console.log("Opening camera");
+                  console.log("Opening camera — location:", currentLocationLabel);
                 }}
               >
                 <Camera className="h-6 w-6 text-primary" />
@@ -195,7 +224,7 @@ export default function EvidenceVault() {
                 onClick={() => {
                   setIsRecording(!isRecording);
                   // TODO: Implement audio recording in Phase 7
-                  console.log(isRecording ? "Stop recording" : "Start recording");
+                  console.log(isRecording ? "Stop recording" : "Start recording — location:", currentLocationLabel);
                 }}
               >
                 <Mic className={`h-6 w-6 ${isRecording ? 'text-emergency animate-pulse' : 'text-primary'}`} />
@@ -207,7 +236,7 @@ export default function EvidenceVault() {
                 className="h-auto flex-col gap-2 py-4"
                 onClick={() => {
                   // TODO: Implement video recording in Phase 7
-                  console.log("Opening video recorder");
+                  console.log("Opening video recorder — location:", currentLocationLabel);
                 }}
               >
                 <Video className="h-6 w-6 text-primary" />
@@ -229,7 +258,15 @@ export default function EvidenceVault() {
 
           {["all", "image", "video", "audio", "document"].map((tab) => (
             <TabsContent key={tab} value={tab} className="space-y-3 mt-4">
-              {evidence
+              {evidence.filter(item => tab === "all" || item.type === tab).length === 0 ? (
+                <Card>
+                  <CardContent className="py-10 text-center text-sm text-muted-foreground space-y-2">
+                    <Lock className="h-8 w-8 mx-auto text-muted-foreground/40" />
+                    <p className="font-medium text-foreground">No evidence yet</p>
+                    <p>Files captured during SOS events will appear here, tagged with your real location.</p>
+                  </CardContent>
+                </Card>
+              ) : evidence
                 .filter(item => tab === "all" || item.type === tab)
                 .map((item) => {
                   const Icon = getFileIcon(item.type);
