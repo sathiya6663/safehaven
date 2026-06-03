@@ -84,20 +84,44 @@ function buildOverpassQuery(latitude: number, longitude: number, radiusMeters: n
 out center;`;
 }
 
-/** Overpass mirrors — tries each in order, falls back on error/timeout */
-const OVERPASS_ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-];
-
+/**
+ * Fetch Overpass data via the /api/overpass Vercel proxy in production
+ * (avoids CORS/mixed-content blocks), or direct mirrors in dev.
+ */
 async function fetchOverpass(query: string): Promise<OverpassResponse> {
-  let lastErr: Error = new Error('All Overpass mirrors failed');
+  // In production (Vercel), use our own proxy to avoid CORS blocks
+  const isProduction = import.meta.env.PROD;
 
-  for (const endpoint of OVERPASS_ENDPOINTS) {
+  if (isProduction) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 25_000);
+    try {
+      const res = await fetch('/api/overpass', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error(`Proxy error ${res.status}`);
+      return await res.json() as OverpassResponse;
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
+    }
+  }
+
+  // Development: hit mirrors directly
+  const MIRRORS = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  ];
+
+  let lastErr: Error = new Error('All Overpass mirrors failed');
+  for (const endpoint of MIRRORS) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20_000);
-
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -106,21 +130,13 @@ async function fetchOverpass(query: string): Promise<OverpassResponse> {
         signal: controller.signal,
       });
       clearTimeout(timer);
-
-      if (!res.ok) {
-        lastErr = new Error(`${endpoint} returned ${res.status}`);
-        continue;
-      }
-
-      const data = await res.json();
-      return data as OverpassResponse;
+      if (!res.ok) { lastErr = new Error(`${endpoint} → ${res.status}`); continue; }
+      return await res.json() as OverpassResponse;
     } catch (err) {
       clearTimeout(timer);
       lastErr = err instanceof Error ? err : new Error(String(err));
-      // try next mirror
     }
   }
-
   throw lastErr;
 }
 
