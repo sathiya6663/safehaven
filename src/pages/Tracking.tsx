@@ -21,12 +21,10 @@ import {
   Navigation,
   Play,
   Square,
-  Users,
   Clock,
   CheckCircle,
   AlertCircle,
   Plus,
-  Trash2,
   Eye,
   EyeOff,
   Loader2,
@@ -35,6 +33,7 @@ import { useGeolocation } from "@/hooks/useGeolocation";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { LiveMap } from "@/components/LiveMap";
 
 interface TrustedContact {
   id: number;
@@ -288,6 +287,26 @@ export default function Tracking() {
             </CardContent>
           </Card>
         ) : null}
+
+        {/* Live Map */}
+        {location && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Navigation className="h-4 w-4 text-primary" />
+                Live Map
+              </CardTitle>
+              <CardDescription>Your current position — updates as you move</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0 overflow-hidden rounded-b-lg">
+              <LiveMap
+                center={{ lat: location.latitude, lng: location.longitude }}
+                height="280px"
+                zoom={15}
+              />
+            </CardContent>
+          </Card>
+        )}
 
         {/* Current Journey */}
         <Card className={isTracking ? "border-primary/50" : ""}>
