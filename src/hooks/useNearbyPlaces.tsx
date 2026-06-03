@@ -13,7 +13,7 @@ export type NearbyPlace = {
   longitude: number;
   address?: string;
   phone?: string;
-  distance: number; // in kilometers
+  distance: number;
   available24x7?: boolean;
 };
 
@@ -40,16 +40,8 @@ type OverpassResponse = {
   elements: OverpassElement[];
 };
 
-/**
- * Calculate distance between two coordinates using Haversine formula.
- * Returns distance in kilometres.
- */
-function calculateDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
+/** Haversine distance in km */
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
@@ -62,22 +54,11 @@ function calculateDistance(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/**
- * Build an Overpass QL query that:
- *  - outputs JSON  ([out:json] — critical, otherwise Overpass returns XML)
- *  - uses `around:radius,lat,lon` for accurate radial search
- *  - covers Indian OSM tagging conventions for police, hospitals, shelters
- *  - requests center coordinates for way/relation results
- */
-function buildOverpassQuery(
-  latitude: number,
-  longitude: number,
-  radiusMeters: number = 10000
-): string {
+/** Overpass QL query — JSON output, around-radius, Indian OSM tags */
+function buildOverpassQuery(latitude: number, longitude: number, radiusMeters: number): string {
   const r = radiusMeters;
   const c = `${latitude},${longitude}`;
-  return `
-[out:json][timeout:30];
+  return `[out:json][timeout:30];
 (
   node["amenity"="hospital"](around:${r},${c});
   node["amenity"="clinic"](around:${r},${c});
@@ -93,78 +74,72 @@ function buildOverpassQuery(
   node["police"="station"](around:${r},${c});
   way["amenity"="police"](around:${r},${c});
   way["office"="police"](around:${r},${c});
-  way["police"="station"](around:${r},${c});
   relation["amenity"="police"](around:${r},${c});
   node["amenity"="shelter"](around:${r},${c});
   node["social_facility"="shelter"](around:${r},${c});
-  node["amenity"="social_facility"]["social_facility"="shelter"](around:${r},${c});
   node["amenity"="refuge"](around:${r},${c});
   way["amenity"="shelter"](around:${r},${c});
-  way["social_facility"="shelter"](around:${r},${c});
   relation["amenity"="shelter"](around:${r},${c});
 );
-out center;
-  `.trim();
+out center;`;
 }
 
-/**
- * Public Overpass API mirrors — tried in order until one succeeds.
- * overpass-api.de sometimes rate-limits; the mirrors are independent.
- */
+/** Overpass mirrors — tries each in order, falls back on error/timeout */
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
 
-/**
- * POST an Overpass query to the first mirror that responds successfully.
- * Falls back through all mirrors before throwing.
- */
 async function fetchOverpass(query: string): Promise<OverpassResponse> {
-  let lastError: Error | null = null;
+  let lastErr: Error = new Error('All Overpass mirrors failed');
 
   for (const endpoint of OVERPASS_ENDPOINTS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+
     try {
-      const response = await fetch(endpoint, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `data=${encodeURIComponent(query)}`,
-        signal: AbortSignal.timeout(20_000), // 20s per mirror
+        signal: controller.signal,
       });
+      clearTimeout(timer);
 
-      if (!response.ok) {
-        lastError = new Error(`${endpoint} returned ${response.status}`);
-        continue; // try next mirror
+      if (!res.ok) {
+        lastErr = new Error(`${endpoint} returned ${res.status}`);
+        continue;
       }
 
-      const data = await response.json();
+      const data = await res.json();
       return data as OverpassResponse;
     } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      // network error or timeout — try next mirror
+      clearTimeout(timer);
+      lastErr = err instanceof Error ? err : new Error(String(err));
+      // try next mirror
     }
   }
 
-  throw lastError ?? new Error('All Overpass mirrors failed');
+  throw lastErr;
 }
+
+export function useNearbyPlaces() {
   const [places, setPlaces] = useState<NearbyPlace[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchNearbyPlaces = useCallback(
-    async (coords: GeolocationCoords, radiusMeters: number = 5000) => {
+    async (coords: GeolocationCoords, radiusMeters = 10000) => {
       setLoading(true);
       setError(null);
 
       try {
         const query = buildOverpassQuery(coords.latitude, coords.longitude, radiusMeters);
-
         const data = await fetchOverpass(query);
 
         const placesList: NearbyPlace[] = data.elements
-          .map((element) => {
-            // Nodes have lat/lon directly; ways/relations use center
+          .map((element): NearbyPlace | null => {
             const lat = element.lat ?? element.center?.lat;
             const lon = element.lon ?? element.center?.lon;
             if (lat == null || lon == null) return null;
@@ -172,31 +147,19 @@ async function fetchOverpass(query: string): Promise<OverpassResponse> {
             const name = element.tags?.name?.trim() || 'Unnamed';
             const phone = element.tags?.phone;
             const openingHours = element.tags?.['opening_hours'];
-            const amenity = element.tags?.amenity;
-            const healthcare = element.tags?.healthcare;
-            const office = element.tags?.office;
-            const policetag = element.tags?.police;
+            const { amenity, healthcare, office, police: policetag } = element.tags ?? {};
             const socialFacility = element.tags?.['social_facility'];
 
-            let type: 'hospital' | 'police' | 'shelter' = 'shelter';
+            let type: NearbyPlace['type'] = 'shelter';
             if (
-              amenity === 'hospital' ||
-              amenity === 'clinic' ||
-              amenity === 'doctors' ||
-              healthcare === 'hospital' ||
-              healthcare === 'clinic'
+              amenity === 'hospital' || amenity === 'clinic' || amenity === 'doctors' ||
+              healthcare === 'hospital' || healthcare === 'clinic'
             ) {
               type = 'hospital';
-            } else if (
-              amenity === 'police' ||
-              office === 'police' ||
-              policetag === 'station'
-            ) {
+            } else if (amenity === 'police' || office === 'police' || policetag === 'station') {
               type = 'police';
             } else if (
-              amenity === 'shelter' ||
-              amenity === 'refuge' ||
-              amenity === 'social_facility' ||
+              amenity === 'shelter' || amenity === 'refuge' || amenity === 'social_facility' ||
               socialFacility === 'shelter'
             ) {
               type = 'shelter';
@@ -218,16 +181,15 @@ async function fetchOverpass(query: string): Promise<OverpassResponse> {
                 !openingHours ||
                 openingHours.includes('24/7') ||
                 openingHours.includes('Mo-Su'),
-            } as NearbyPlace;
+            };
           })
           .filter((p): p is NearbyPlace => p !== null);
 
         placesList.sort((a, b) => a.distance - b.distance);
         setPlaces(placesList);
       } catch (err) {
-        const errorMsg =
-          err instanceof Error ? err.message : 'Failed to fetch nearby places';
-        setError(errorMsg);
+        const msg = err instanceof Error ? err.message : 'Failed to fetch nearby places';
+        setError(msg);
         console.error('Nearby places error:', err);
       } finally {
         setLoading(false);
@@ -242,12 +204,5 @@ async function fetchOverpass(query: string): Promise<OverpassResponse> {
   const getOpenStreetMapUrl = (place: NearbyPlace): string =>
     `https://www.openstreetmap.org/?mlat=${place.latitude}&mlon=${place.longitude}&zoom=18`;
 
-  return {
-    places,
-    loading,
-    error,
-    fetchNearbyPlaces,
-    getGoogleMapsNavigationUrl,
-    getOpenStreetMapUrl,
-  };
+  return { places, loading, error, fetchNearbyPlaces, getGoogleMapsNavigationUrl, getOpenStreetMapUrl };
 }
