@@ -1,11 +1,7 @@
 /**
  * Vercel serverless proxy for Overpass API.
- * The browser calls /api/overpass instead of overpass-api.de directly,
- * avoiding CORS/mixed-content blocks on the production HTTPS domain.
- *
- * POST /api/overpass
- * Body: { query: string }
- * Returns: Overpass JSON response
+ * Runs server-side — no CORS restrictions.
+ * Browser calls POST /api/overpass with { query: string }
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
@@ -15,8 +11,11 @@ const MIRRORS = [
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ];
 
+export const config = {
+  runtime: "nodejs",
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers so the browser fetch succeeds
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -24,17 +23,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "OPTIONS") {
     return res.status(204).end();
   }
-
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { query } = req.body as { query?: string };
-  if (!query || typeof query !== "string") {
-    return res.status(400).json({ error: "Missing query" });
+  let body = req.body;
+  // Vercel may not auto-parse if Content-Type isn't set correctly
+  if (typeof body === "string") {
+    try { body = JSON.parse(body); } catch { /* ignore */ }
   }
 
-  let lastError = "All mirrors failed";
+  const query = (body as any)?.query;
+  if (!query || typeof query !== "string") {
+    return res.status(400).json({ error: "Missing or invalid query" });
+  }
+
+  let lastError = "All Overpass mirrors failed";
 
   for (const mirror of MIRRORS) {
     try {
@@ -51,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       clearTimeout(timer);
 
       if (!upstream.ok) {
-        lastError = `${mirror} → ${upstream.status}`;
+        lastError = `${mirror} returned ${upstream.status}`;
         continue;
       }
 
@@ -59,7 +63,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(data);
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
-      // try next mirror
     }
   }
 
