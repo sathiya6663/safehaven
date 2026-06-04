@@ -30,19 +30,33 @@ export type ProgressStats = {
 };
 
 // ── Score formula ─────────────────────────────────────────────────────────────
-// Points:
-//   counseling session  = 20 pts  (max 3/day → 60 pts)
-//   learning module     = 25 pts  (max 4/month → 100 pts)
-//   community post      = 10 pts  (max 3/period → 30 pts)
-//   mood check-in       = 10 pts  (max 1/day → 10 pts)
-// Score is capped at 100.
+// Percentage contribution per metric — adds up to 100% max:
+//   counseling sessions : 40% weight  (goal: 3/week, 10/month)
+//   learning modules    : 35% weight  (goal: 2/week, 6/month)
+//   community posts     : 15% weight  (goal: 3/week, 10/month)
+//   mood check-ins      : 10% weight  (goal: 5/week, 20/month — frequent, low weight)
+//
+// Each metric contributes (actual / goal) * weight, capped at its weight.
+// Period goals determine the denominator so numbers feel accurate per period.
 function calcScore(
   sessions: number,
   modules: number,
   posts: number,
-  moods: number
+  moods: number,
+  period: 'today' | 'week' | 'month'
 ): number {
-  return Math.min(100, sessions * 20 + modules * 25 + posts * 10 + moods * 10);
+  const goals = {
+    today: { sessions: 1,  modules: 1,  posts: 1,  moods: 1  },
+    week:  { sessions: 3,  modules: 2,  posts: 3,  moods: 5  },
+    month: { sessions: 10, modules: 6,  posts: 10, moods: 20 },
+  };
+  const g = goals[period];
+  const score =
+    Math.min(40, (sessions / g.sessions) * 40) +
+    Math.min(35, (modules  / g.modules)  * 35) +
+    Math.min(15, (posts    / g.posts)    * 15) +
+    Math.min(10, (moods    / g.moods)    * 10);
+  return Math.round(Math.min(100, score));
 }
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -240,10 +254,10 @@ export function useProgressTracking() {
       const as_ = c(allSessions);    const am = c(allModules);      const ap = c(allPosts);     const amo = c(allMoods);
 
       // ── Scores ─────────────────────────────────────────────────────────────
-      const todayScore     = calcScore(ts, tm, tp, tmo);
-      const weekScore      = calcScore(ws, wm, wp, wmo);
-      const lastWeekScore  = calcScore(lws, lwm, lwp, 0);
-      const monthScore     = calcScore(ms, mm, mp, mmo);
+      const todayScore     = calcScore(ts, tm, tp, tmo, 'today');
+      const weekScore      = calcScore(ws, wm, wp, wmo, 'week');
+      const lastWeekScore  = calcScore(lws, lwm, lwp, 0,   'week');
+      const monthScore     = calcScore(ms, mm, mp, mmo, 'month');
 
       // Overall score: normalised across all activities
       // Max sensible all-time totals per activity

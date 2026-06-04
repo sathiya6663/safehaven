@@ -3,9 +3,8 @@ import { Header } from "@/components/layout/Header";
 import { BottomTabBar } from "@/components/layout/BottomTabBar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Heart, BookOpen, Shield, MessageCircle, MapPin, Calendar, TrendingUp, Check } from "lucide-react";
+import { Heart, BookOpen, Shield, MessageCircle, MapPin, TrendingUp, Check, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Progress } from "@/components/ui/progress";
 import { RiskScoreCard } from "@/components/RiskScoreCard";
 import { RecentAlerts } from "@/components/RecentAlerts";
 import { MoodTrackerChart } from "@/components/MoodTrackerChart";
@@ -13,6 +12,7 @@ import { ProgressCards } from "@/components/ProgressCards";
 import { SessionHistoryComponent } from "@/components/SessionHistoryComponent";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
+import { useGeolocation } from "@/hooks/useGeolocation";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -43,6 +43,38 @@ export default function Dashboard() {
 
   const [todayMood, setTodayMood] = useState<string | null>(null);
   const [savingMood, setSavingMood] = useState(false);
+
+  // Real GPS location + reverse geocoding
+  const { location: gpsLocation, getCurrentLocation, isLoading: gpsLoading } = useGeolocation();
+  const [locationLabel, setLocationLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    getCurrentLocation();
+  }, [getCurrentLocation]);
+
+  // Reverse geocode GPS coords to a human-readable place name via Nominatim
+  useEffect(() => {
+    if (!gpsLocation) return;
+    const { latitude, longitude } = gpsLocation;
+    fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'SafeHaven-App' } }
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        const addr = data.address ?? {};
+        // Build a short label: suburb/city + state
+        const parts = [
+          addr.suburb || addr.neighbourhood || addr.village || addr.town || addr.city,
+          addr.state,
+        ].filter(Boolean);
+        setLocationLabel(parts.join(', ') || data.display_name?.split(',').slice(0, 2).join(',').trim() || null);
+      })
+      .catch(() => {
+        // Fallback to raw coordinates
+        setLocationLabel(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+      });
+  }, [gpsLocation]);
 
   // Load today's mood check-in
   useEffect(() => {
@@ -162,17 +194,39 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {profile?.location && (
-          <Card className="p-5">
-            <div className="flex items-start gap-3 mb-3">
-              <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h3 className="font-heading font-semibold mb-1">Your Location</h3>
-                <p className="text-sm text-muted-foreground">{profile.location}</p>
-              </div>
+        {/* Live GPS Location */}
+        <Card className="p-5">
+          <div className="flex items-start gap-3">
+            <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <h3 className="font-heading font-semibold mb-1">Your Location</h3>
+              {gpsLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Getting location…</p>
+                </div>
+              ) : locationLabel ? (
+                <p className="text-sm text-muted-foreground truncate">{locationLabel}</p>
+              ) : gpsLocation ? (
+                <p className="text-sm text-muted-foreground font-mono">
+                  {gpsLocation.latitude.toFixed(5)}, {gpsLocation.longitude.toFixed(5)}
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Location unavailable</p>
+                  <Button size="sm" variant="outline" onClick={getCurrentLocation} className="h-7 text-xs">
+                    Enable Location
+                  </Button>
+                </div>
+              )}
             </div>
-          </Card>
-        )}
+            {gpsLocation && !gpsLoading && (
+              <Button variant="ghost" size="icon" onClick={getCurrentLocation} className="h-7 w-7 shrink-0" aria-label="Refresh location">
+                <MapPin className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+        </Card>
 
         {/* Real-time Progress Cards */}
         <div>
