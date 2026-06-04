@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import {
   User,
   Shield,
@@ -23,6 +24,12 @@ import {
   Sun,
   Moon,
   Monitor,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  ShieldCheck,
+  ShieldOff,
+  Copy,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +45,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -96,6 +104,17 @@ export default function Profile() {
   const [pwdForm, setPwdForm] = useState({ next: "", confirm: "" });
   const [pwdSaving, setPwdSaving] = useState(false);
 
+  // ── Two-Factor Authentication (TOTP via Supabase MFA) ─────────────────────
+  const [twoFactorStatus, setTwoFactorStatus] = useState<"loading" | "enabled" | "disabled">("loading");
+  const [twoFactorDialogOpen, setTwoFactorDialogOpen] = useState(false);
+  const [twoFactorMode, setTwoFactorMode] = useState<"enroll" | "unenroll">("enroll");
+  // Enrollment
+  const [totpQR, setTotpQR] = useState<string | null>(null);
+  const [totpSecret, setTotpSecret] = useState<string | null>(null);
+  const [totpFactorId, setTotpFactorId] = useState<string | null>(null);
+  const [totpCode, setTotpCode] = useState("");
+  const [twoFactorSaving, setTwoFactorSaving] = useState(false);
+
   // Language state — synced with profile.preferred_language
   const [language, setLanguage] = useState<string>(() => localStorage.getItem("preferredLanguage") || "en");
 
@@ -151,8 +170,108 @@ export default function Profile() {
     toast({ title: "Password updated" });
   };
 
-  const handleSave = async () => {
-    const { error } = await updateProfile(form);
+  // ── 2FA: check current status on mount ─────────────────────────────────
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const { data, error } = await supabase.auth.mfa.listFactors();
+        if (error) throw error;
+        const verified = data.totp?.find((f) => f.status === "verified");
+        setTwoFactorStatus(verified ? "enabled" : "disabled");
+        if (verified) setTotpFactorId(verified.id);
+      } catch {
+        setTwoFactorStatus("disabled");
+      }
+    })();
+  }, [user]);
+
+  // ── 2FA: start enrollment (get QR code) ─────────────────────────────────
+  const handleOpenEnroll = async () => {
+    setTwoFactorMode("enroll");
+    setTotpCode("");
+    setTotpQR(null);
+    setTotpSecret(null);
+    setTwoFactorDialogOpen(true);
+    setTwoFactorSaving(true);
+    try {
+      const { data, error } = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: "SafeHaven Authenticator",
+      });
+      if (error) throw error;
+      setTotpFactorId(data.id);
+      setTotpQR(data.totp.qr_code);
+      setTotpSecret(data.totp.secret);
+    } catch (err) {
+      toast({
+        title: "Couldn't start 2FA setup",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+      setTwoFactorDialogOpen(false);
+    } finally {
+      setTwoFactorSaving(false);
+    }
+  };
+
+  // ── 2FA: verify TOTP code and activate ───────────────────────────────────
+  const handleVerifyAndActivate = async () => {
+    if (!totpFactorId || totpCode.length < 6) {
+      toast({ title: "Enter the 6-digit code from your authenticator app", variant: "destructive" });
+      return;
+    }
+    setTwoFactorSaving(true);
+    try {
+      // Create a challenge then verify
+      const { data: challengeData, error: challengeErr } = await supabase.auth.mfa.challenge({ factorId: totpFactorId });
+      if (challengeErr) throw challengeErr;
+
+      const { error: verifyErr } = await supabase.auth.mfa.verify({
+        factorId: totpFactorId,
+        challengeId: challengeData.id,
+        code: totpCode,
+      });
+      if (verifyErr) throw verifyErr;
+
+      setTwoFactorStatus("enabled");
+      setTwoFactorDialogOpen(false);
+      setTotpCode("");
+      toast({ title: "Two-factor authentication enabled", description: "Your account is now more secure." });
+    } catch (err) {
+      toast({
+        title: "Invalid code",
+        description: "The code didn't match. Check your authenticator app and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setTwoFactorSaving(false);
+    }
+  };
+
+  // ── 2FA: unenroll (disable) ──────────────────────────────────────────────
+  const handleDisable2FA = async () => {
+    if (!totpFactorId) return;
+    setTwoFactorSaving(true);
+    try {
+      const { error } = await supabase.auth.mfa.unenroll({ factorId: totpFactorId });
+      if (error) throw error;
+      setTwoFactorStatus("disabled");
+      setTotpFactorId(null);
+      setTwoFactorDialogOpen(false);
+      toast({ title: "Two-factor authentication disabled." });
+    } catch (err) {
+      toast({
+        title: "Couldn't disable 2FA",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setTwoFactorSaving(false);
+    }
+  };
+
+  const handleSave = async () => {    const { error } = await updateProfile(form);
     if (!error) {
       toast({ title: "Profile saved" });
     }
@@ -389,15 +508,54 @@ export default function Profile() {
                   <Lock className="mr-2 h-4 w-4" />
                   Change Password
                 </Button>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  disabled
-                  title="Two-factor authentication ships in Phase 5"
-                >
-                  <Shield className="mr-2 h-4 w-4" />
-                  Two-Factor Authentication (coming in Phase 5)
-                </Button>
+
+                {/* ── Two-Factor Authentication ── */}
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium text-sm">Two-Factor Authentication</p>
+                        <p className="text-xs text-muted-foreground">
+                          Extra security via authenticator app (Google Authenticator, Authy)
+                        </p>
+                      </div>
+                    </div>
+                    {twoFactorStatus === "loading" ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : twoFactorStatus === "enabled" ? (
+                      <Badge variant="default" className="gap-1 bg-green-600">
+                        <CheckCircle className="h-3 w-3" />Enabled
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="gap-1">
+                        <XCircle className="h-3 w-3" />Disabled
+                      </Badge>
+                    )}
+                  </div>
+
+                  {twoFactorStatus === "enabled" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-destructive border-destructive/40 hover:bg-destructive/5"
+                      onClick={() => { setTwoFactorMode("unenroll"); setTwoFactorDialogOpen(true); }}
+                    >
+                      <ShieldOff className="mr-2 h-4 w-4" />
+                      Disable Two-Factor Authentication
+                    </Button>
+                  ) : twoFactorStatus === "disabled" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={handleOpenEnroll}
+                    >
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      Enable Two-Factor Authentication
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             </Card>
           </TabsContent>
@@ -687,6 +845,111 @@ export default function Profile() {
             </Button>
             <Button onClick={handleChangePassword} disabled={pwdSaving}>
               {pwdSaving ? "Saving…" : "Update password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 2FA Enroll Dialog ── */}
+      <Dialog open={twoFactorDialogOpen && twoFactorMode === "enroll"} onOpenChange={(v) => { if (!v) setTwoFactorDialogOpen(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              Set Up Two-Factor Authentication
+            </DialogTitle>
+            <DialogDescription>
+              Scan the QR code with Google Authenticator or Authy, then enter the 6-digit code.
+            </DialogDescription>
+          </DialogHeader>
+
+          {twoFactorSaving && !totpQR ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : totpQR ? (
+            <div className="space-y-4">
+              {/* QR code */}
+              <div className="flex justify-center p-4 bg-white rounded-lg border">
+                <img src={totpQR} alt="TOTP QR code" className="w-48 h-48" />
+              </div>
+
+              {/* Manual entry secret */}
+              {totpSecret && (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Can't scan? Enter this code manually:</p>
+                  <div className="flex items-center gap-2 p-2 bg-muted rounded font-mono text-sm break-all">
+                    <span className="flex-1 select-all">{totpSecret}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(totpSecret);
+                        toast({ title: "Secret copied" });
+                      }}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Verification code input */}
+              <div className="space-y-2">
+                <Label htmlFor="totp-code">Verification Code</Label>
+                <Input
+                  id="totp-code"
+                  placeholder="000000"
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  maxLength={6}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  className="text-center text-xl tracking-widest font-mono"
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTwoFactorDialogOpen(false)} disabled={twoFactorSaving}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleVerifyAndActivate}
+              disabled={twoFactorSaving || totpCode.length < 6}
+            >
+              {twoFactorSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
+              Activate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 2FA Unenroll Dialog ── */}
+      <Dialog open={twoFactorDialogOpen && twoFactorMode === "unenroll"} onOpenChange={(v) => { if (!v) setTwoFactorDialogOpen(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldOff className="h-5 w-5 text-destructive" />
+              Disable Two-Factor Authentication
+            </DialogTitle>
+            <DialogDescription>
+              This will remove the extra layer of security from your account. Are you sure?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTwoFactorDialogOpen(false)} disabled={twoFactorSaving}>
+              Keep 2FA Enabled
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDisable2FA}
+              disabled={twoFactorSaving}
+            >
+              {twoFactorSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ShieldOff className="h-4 w-4 mr-2" />}
+              Disable 2FA
             </Button>
           </DialogFooter>
         </DialogContent>
