@@ -1,9 +1,12 @@
 /**
  * Vercel serverless proxy for Overpass API.
- * Runs server-side — no CORS restrictions.
- * Browser calls POST /api/overpass with { query: string }
+ * Runs server-side so there are no CORS restrictions.
+ * The Vite SPA rewrite in vercel.json is scoped to exclude /api/*
+ * so this function receives the request correctly.
+ *
+ * POST /api/overpass
+ * Body: { query: string }
  */
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const MIRRORS = [
   "https://overpass-api.de/api/interpreter",
@@ -11,11 +14,7 @@ const MIRRORS = [
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ];
 
-export const config = {
-  runtime: "nodejs",
-};
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -27,44 +26,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // Parse body — Vercel auto-parses JSON when Content-Type is application/json
   let body = req.body;
-  // Vercel may not auto-parse if Content-Type isn't set correctly
   if (typeof body === "string") {
-    try { body = JSON.parse(body); } catch { /* ignore */ }
+    try { body = JSON.parse(body); } catch (_) { /* ignore */ }
   }
 
-  const query = (body as any)?.query;
+  const query = body && body.query;
   if (!query || typeof query !== "string") {
-    return res.status(400).json({ error: "Missing or invalid query" });
+    return res.status(400).json({ error: "Missing or invalid query field" });
   }
 
   let lastError = "All Overpass mirrors failed";
 
   for (const mirror of MIRRORS) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 25_000);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 25000);
 
+    try {
       const upstream = await fetch(mirror, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `data=${encodeURIComponent(query)}`,
+        body: "data=" + encodeURIComponent(query),
         signal: controller.signal,
       });
 
       clearTimeout(timer);
 
       if (!upstream.ok) {
-        lastError = `${mirror} returned ${upstream.status}`;
+        lastError = mirror + " returned HTTP " + upstream.status;
         continue;
       }
 
       const data = await upstream.json();
       return res.status(200).json(data);
     } catch (err) {
+      clearTimeout(timer);
       lastError = err instanceof Error ? err.message : String(err);
+      // try next mirror
     }
   }
 
   return res.status(502).json({ error: lastError });
-}
+};
