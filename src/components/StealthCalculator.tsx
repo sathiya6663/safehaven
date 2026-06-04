@@ -25,14 +25,26 @@ export function StealthCalculator() {
   const { stealthActive, disableStealth } = useStealth();
   const { toast } = useToast();
 
-  // ---- Calculator state ----
-  // We track: current display value, the stored operand, the pending operator,
-  // and whether the next digit press should start a fresh number.
-  const [display, setDisplay]               = useState('0');
-  const [storedValue, setStoredValue]       = useState<number | null>(null);
-  const [pendingOp, setPendingOp]           = useState<string | null>(null);
-  const [freshEntry, setFreshEntry]         = useState(false);   // next digit starts new number
-  const [justEvaled, setJustEvaled]         = useState(false);  // = was just pressed
+  // ── Calculator state ────────────────────────────────────────────────────────
+  const [display, setDisplay]         = useState('0');
+  const [storedValue, setStoredValue] = useState<number | null>(null);
+  const [pendingOp, setPendingOp]     = useState<string | null>(null);
+  const [freshEntry, setFreshEntry]   = useState(false);  // next digit starts fresh
+  const [justEvaled, setJustEvaled]   = useState(false);  // = was just pressed
+
+  // ── Long-press tracking ─────────────────────────────────────────────────────
+  const holdTimer      = useRef<number | null>(null);
+  const holdStart      = useRef<number>(0);
+  const holdCompleted  = useRef(false);
+  const [holdProgress, setHoldProgress] = useState(0);
+  const progressTimer  = useRef<number | null>(null);
+
+  // ── Re-auth dialog ──────────────────────────────────────────────────────────
+  const [authOpen, setAuthOpen]       = useState(false);
+  const [email, setEmail]             = useState('');
+  const [password, setPassword]       = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError]     = useState<string | null>(null);
 
   useEffect(() => {
     if (!stealthActive) {
@@ -46,7 +58,7 @@ export function StealthCalculator() {
 
   if (!stealthActive) return null;
 
-  // ---- Arithmetic ----
+  // ── Arithmetic ──────────────────────────────────────────────────────────────
   const applyOp = (a: number, b: number, op: string): number => {
     switch (op) {
       case '+': return a + b;
@@ -57,23 +69,21 @@ export function StealthCalculator() {
     }
   };
 
-  /** Format a number for display — avoid floating-point noise */
+  /** Format number — strip floating-point noise, handle Infinity / NaN */
   const fmt = (n: number): string => {
-    if (!isFinite(n)) return n === Infinity ? '∞' : 'Error';
-    // Round to 10 significant figures to kill floating-point noise
+    if (isNaN(n))      return 'Error';
+    if (!isFinite(n))  return n > 0 ? '∞' : '-∞';
     const rounded = parseFloat(n.toPrecision(10));
-    // Show up to 9 decimal places but strip trailing zeros
     return String(rounded);
   };
 
-  // ---- Button handlers ----
+  // ── Button handlers ─────────────────────────────────────────────────────────
   const inputDigit = (d: string) => {
     if (freshEntry || justEvaled) {
-      setDisplay(d);
+      setDisplay(d === '0' ? '0' : d);
       setFreshEntry(false);
       setJustEvaled(false);
     } else {
-      // Max 12 visible digits
       if (display.replace(/[^0-9]/g, '').length >= 12) return;
       setDisplay(display === '0' ? d : display + d);
     }
@@ -90,8 +100,10 @@ export function StealthCalculator() {
   };
 
   const inputBackspace = () => {
-    if (freshEntry || justEvaled || display.length === 1) {
+    if (freshEntry || justEvaled || display.length <= 1 || display === 'Error') {
       setDisplay('0');
+      setFreshEntry(false);
+      setJustEvaled(false);
       return;
     }
     const next = display.slice(0, -1);
@@ -107,33 +119,33 @@ export function StealthCalculator() {
   };
 
   const toggleSign = () => {
-    if (display === '0') return;
+    if (display === '0' || display === 'Error') return;
     setDisplay(display.startsWith('-') ? display.slice(1) : '-' + display);
   };
 
   const percent = () => {
     const v = parseFloat(display);
-    // If there's a stored value + pending op, % means (stored * v / 100)
-    const result = storedValue !== null && (pendingOp === '+' || pendingOp === '−')
-      ? (storedValue * v) / 100
-      : v / 100;
+    if (isNaN(v)) return;
+    const result =
+      storedValue !== null && (pendingOp === '+' || pendingOp === '−')
+        ? (storedValue * v) / 100
+        : v / 100;
     setDisplay(fmt(result));
     setFreshEntry(true);
   };
 
   /**
-   * Called when the user presses an operator key (+, −, ×, ÷).
-   * If there is already a pending operation and a stored value,
-   * evaluate it first (chained operations: 3 + 4 × ...).
+   * Operator pressed (+, −, ×, ÷).
+   * Evaluates any pending operation first (chain support: 3+4× = 7×).
    */
   const pressOperator = (op: string) => {
     const current = parseFloat(display);
+    if (isNaN(current)) return;
 
     if (storedValue !== null && pendingOp !== null && !freshEntry) {
-      // Chain: evaluate the pending operation first
       const result = applyOp(storedValue, current, pendingOp);
       setDisplay(fmt(result));
-      setStoredValue(result);
+      setStoredValue(isNaN(result) ? null : result);
     } else {
       setStoredValue(current);
     }
@@ -143,130 +155,33 @@ export function StealthCalculator() {
     setJustEvaled(false);
   };
 
-  /**
-   * Called when the user taps "=".
-   * Evaluates the pending operation and shows the result.
-   */
+  /** Equals pressed. */
   const equalsTap = () => {
     if (pendingOp === null || storedValue === null) return;
     const current = parseFloat(display);
+    if (isNaN(current)) return;
     const result = applyOp(storedValue, current, pendingOp);
     setDisplay(fmt(result));
-    // Don't clear pendingOp/storedValue so repeated = repeats the last op
-    setStoredValue(result);
+    setStoredValue(isNaN(result) ? null : result);
     setPendingOp(null);
     setFreshEntry(false);
     setJustEvaled(true);
   };
 
-  // Long-press tracking
-  const holdTimer = useRef<number | null>(null);
-  const holdStart = useRef<number>(0);
-  const [holdProgress, setHoldProgress] = useState(0);
-  const progressTimer = useRef<number | null>(null);
-
-  // Re-auth dialog
-  const [authOpen, setAuthOpen] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!stealthActive) {
-      // reset state when leaving stealth
-      setDisplay('0');
-      setPrevious(null);
-      setOperator(null);
-      setWaitingForOperand(false);
-    }
-  }, [stealthActive]);
-
-  if (!stealthActive) return null;
-
-  // ---- Calculator logic ----
-  const inputDigit = (d: string) => {
-    if (waitingForOperand) {
-      setDisplay(d);
-      setWaitingForOperand(false);
-    } else {
-      setDisplay(display === '0' ? d : display + d);
-    }
-  };
-
-  const inputDot = () => {
-    if (waitingForOperand) {
-      setDisplay('0.');
-      setWaitingForOperand(false);
-      return;
-    }
-    if (!display.includes('.')) setDisplay(display + '.');
-  };
-
-  const clearAll = () => {
-    setDisplay('0');
-    setPrevious(null);
-    setOperator(null);
-    setWaitingForOperand(false);
-  };
-
-  const toggleSign = () => {
-    setDisplay(String(parseFloat(display) * -1));
-  };
-
-  const percent = () => {
-    setDisplay(String(parseFloat(display) / 100));
-  };
-
-  const compute = (a: number, b: number, op: string) => {
-    switch (op) {
-      case '+': return a + b;
-      case '−': return a - b;
-      case '×': return a * b;
-      case '÷': return b === 0 ? 0 : a / b;
-      default: return b;
-    }
-  };
-
-  const performOperator = (next: string) => {
-    const value = parseFloat(display);
-    if (previous === null) {
-      setPrevious(value);
-    } else if (operator) {
-      const result = compute(previous, value, operator);
-      setPrevious(result);
-      setDisplay(String(result));
-    }
-    setOperator(next);
-    setWaitingForOperand(true);
-  };
-
-  const equalsTap = () => {
-    if (operator !== null && previous !== null) {
-      const value = parseFloat(display);
-      const result = compute(previous, value, operator);
-      setDisplay(String(result));
-      setPrevious(null);
-      setOperator(null);
-      setWaitingForOperand(true);
-    }
-  };
-
-  // ---- Long-press on "=" to exit stealth ----
-  const holdCompleted = useRef(false);
-
+  // ── Long-press "=" to exit stealth ─────────────────────────────────────────
   const startHold = () => {
     holdCompleted.current = false;
     holdStart.current = Date.now();
     setHoldProgress(0);
+
     progressTimer.current = window.setInterval(() => {
       const pct = Math.min(100, ((Date.now() - holdStart.current) / HOLD_MS) * 100);
       setHoldProgress(pct);
     }, 30);
+
     holdTimer.current = window.setTimeout(async () => {
       holdCompleted.current = true;
       cancelHold();
-      // Long-press fired — attempt to exit
       const { data } = await supabase.auth.getSession();
       if (data.session) {
         disableStealth();
@@ -294,11 +209,10 @@ export function StealthCalculator() {
   const handleEqualsPointerUp = () => {
     const wasShortPress = !holdCompleted.current;
     cancelHold();
-    if (wasShortPress) {
-      equalsTap();
-    }
+    if (wasShortPress) equalsTap();
   };
 
+  // ── Re-auth handler ─────────────────────────────────────────────────────────
   const handleReauth = async () => {
     setAuthLoading(true);
     setAuthError(null);
@@ -316,7 +230,7 @@ export function StealthCalculator() {
     toast({ title: 'Welcome back', description: 'Stealth mode disabled.' });
   };
 
-  // ---- UI ----
+  // ── Button component ────────────────────────────────────────────────────────
   const Btn = ({
     children,
     onClick,
@@ -328,14 +242,11 @@ export function StealthCalculator() {
     variant?: 'num' | 'op' | 'fn';
     wide?: boolean;
   }) => {
-    const base =
-      'h-16 rounded-full text-2xl font-medium transition active:scale-95 select-none';
+    const base = 'h-16 rounded-full text-2xl font-medium transition active:scale-95 select-none';
     const styles =
-      variant === 'op'
-        ? 'bg-orange-500 text-white hover:bg-orange-400'
-        : variant === 'fn'
-        ? 'bg-zinc-400 text-black hover:bg-zinc-300'
-        : 'bg-zinc-700 text-white hover:bg-zinc-600';
+      variant === 'op' ? 'bg-orange-500 text-white hover:bg-orange-400'
+      : variant === 'fn' ? 'bg-zinc-400 text-black hover:bg-zinc-300'
+      : 'bg-zinc-700 text-white hover:bg-zinc-600';
     return (
       <button
         onClick={onClick}
@@ -346,16 +257,22 @@ export function StealthCalculator() {
     );
   };
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div
       className="fixed inset-0 z-[9999] bg-black text-white flex flex-col"
-      // Prevent the rest of the app from receiving input
       onContextMenu={(e) => e.preventDefault()}
     >
       {/* Display */}
       <div className="flex-1 flex flex-col justify-end p-6">
+        {pendingOp && (
+          <p className="text-right text-zinc-500 text-lg mb-1 truncate">
+            {storedValue !== null ? fmt(storedValue) : ''} {pendingOp}
+          </p>
+        )}
         <div
-          className="text-right text-7xl font-light truncate"
+          className="text-right font-light truncate"
+          style={{ fontSize: display.length > 9 ? '2.5rem' : '4.5rem' }}
           aria-label="Calculator display"
         >
           {display}
@@ -364,42 +281,47 @@ export function StealthCalculator() {
 
       {/* Keypad */}
       <div className="p-3 grid grid-cols-4 gap-3 pb-8">
-        <Btn variant="fn" onClick={clearAll}>AC</Btn>
+        {/* Row 1 */}
+        <Btn variant="fn" onClick={clearAll}>{display !== '0' && !freshEntry ? 'C' : 'AC'}</Btn>
         <Btn variant="fn" onClick={toggleSign}>+/−</Btn>
         <Btn variant="fn" onClick={percent}>%</Btn>
         <Btn variant="op" onClick={() => pressOperator('÷')}>÷</Btn>
 
+        {/* Row 2 */}
         <Btn onClick={() => inputDigit('7')}>7</Btn>
         <Btn onClick={() => inputDigit('8')}>8</Btn>
         <Btn onClick={() => inputDigit('9')}>9</Btn>
         <Btn variant="op" onClick={() => pressOperator('×')}>×</Btn>
 
+        {/* Row 3 */}
         <Btn onClick={() => inputDigit('4')}>4</Btn>
         <Btn onClick={() => inputDigit('5')}>5</Btn>
         <Btn onClick={() => inputDigit('6')}>6</Btn>
         <Btn variant="op" onClick={() => pressOperator('−')}>−</Btn>
 
+        {/* Row 4 */}
         <Btn onClick={() => inputDigit('1')}>1</Btn>
         <Btn onClick={() => inputDigit('2')}>2</Btn>
         <Btn onClick={() => inputDigit('3')}>3</Btn>
         <Btn variant="op" onClick={() => pressOperator('+')}>+</Btn>
 
+        {/* Row 5 */}
         <Btn wide onClick={() => inputDigit('0')}>0</Btn>
         <Btn onClick={inputDot}>.</Btn>
 
-        {/* "=" with long-press to exit stealth */}
+        {/* "=" — short tap = equals, long-press (2s) = exit stealth */}
         <button
           onPointerDown={startHold}
           onPointerUp={handleEqualsPointerUp}
           onPointerLeave={() => cancelHold()}
           onPointerCancel={() => cancelHold()}
           className="relative h-16 rounded-full text-2xl font-medium bg-orange-500 text-white hover:bg-orange-400 transition active:scale-95 select-none overflow-hidden"
-          aria-label="Equals. Hold for 2 seconds to exit calculator."
+          aria-label="Equals. Hold 2 seconds to exit calculator."
         >
           <span className="relative z-10">=</span>
           {holdProgress > 0 && (
             <span
-              className="absolute inset-0 bg-white/25 transition-[width] duration-75 ease-linear"
+              className="absolute inset-0 bg-white/25"
               style={{ width: `${holdProgress}%` }}
               aria-hidden="true"
             />
@@ -407,7 +329,7 @@ export function StealthCalculator() {
         </button>
       </div>
 
-      {/* Re-auth dialog (secure fallback) */}
+      {/* Re-auth dialog */}
       <Dialog open={authOpen} onOpenChange={setAuthOpen}>
         <DialogContent className="z-[10000]">
           <DialogHeader>
@@ -436,13 +358,8 @@ export function StealthCalculator() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setAuthOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleReauth}
-              disabled={authLoading || !email || !password}
-            >
+            <Button variant="ghost" onClick={() => setAuthOpen(false)}>Cancel</Button>
+            <Button onClick={handleReauth} disabled={authLoading || !email || !password}>
               {authLoading ? 'Verifying…' : 'Unlock'}
             </Button>
           </DialogFooter>
