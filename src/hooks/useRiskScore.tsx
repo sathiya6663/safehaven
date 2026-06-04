@@ -31,7 +31,7 @@ export function useRiskScore() {
     if (!user) return;
     setLoading(true);
     try {
-      let score = 95;
+      let score = 100;  // start at 100 — fully safe until factors reduce it
       const factors: { label: string; impact: number }[] = [];
 
       // Time of day
