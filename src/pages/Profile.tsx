@@ -81,13 +81,47 @@ export default function Profile() {
     location: "",
   });
 
-  const [settings, setSettings] = useState({
-    notifications: true,
-    locationSharing: false,
-    dataCollection: true,
-    aiMonitoring: true,
-    emergencyAlerts: true,
+  // ── Privacy settings — loaded from localStorage (user-keyed) ─────────────
+  // Falls back to safe defaults. Persisted immediately on every change.
+  const SETTINGS_KEY = `safehaven_settings_${user?.id ?? "anon"}`;
+
+  const [settings, setSettings] = useState(() => {
+    try {
+      const stored = localStorage.getItem(SETTINGS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return {
+          notifications:    parsed.notifications    ?? true,
+          locationSharing:  parsed.locationSharing  ?? false,
+          dataCollection:   parsed.dataCollection   ?? true,
+          aiMonitoring:     parsed.aiMonitoring      ?? true,
+          emergencyAlerts:  parsed.emergencyAlerts   ?? true,
+        };
+      }
+    } catch { /* ignore */ }
+    return {
+      notifications:   true,
+      locationSharing: false,
+      dataCollection:  true,
+      aiMonitoring:    true,
+      emergencyAlerts: true,
+    };
   });
+
+  // Persist settings whenever they change
+  const updateSetting = (key: keyof typeof settings, value: boolean) => {
+    const next = { ...settings, [key]: value };
+    setSettings(next);
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+    } catch { /* ignore quota errors */ }
+    // Best-effort sync to Supabase user metadata for cross-device consistency
+    if (user) {
+      supabase.auth.updateUser({
+        data: { privacy_settings: next },
+      }).catch(() => { /* non-critical */ });
+    }
+  };
 
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
@@ -117,6 +151,29 @@ export default function Profile() {
 
   // Language state — synced with profile.preferred_language
   const [language, setLanguage] = useState<string>(() => localStorage.getItem("preferredLanguage") || "en");
+
+  // Load settings from Supabase user metadata (cross-device sync)
+  useEffect(() => {
+    if (!user) return;
+    supabase.auth.getUser().then(({ data }) => {
+      const stored = data?.user?.user_metadata?.privacy_settings;
+      if (stored && typeof stored === "object") {
+        const merged = {
+          notifications:   stored.notifications   ?? settings.notifications,
+          locationSharing: stored.locationSharing ?? settings.locationSharing,
+          dataCollection:  stored.dataCollection  ?? settings.dataCollection,
+          aiMonitoring:    stored.aiMonitoring     ?? settings.aiMonitoring,
+          emergencyAlerts: stored.emergencyAlerts  ?? settings.emergencyAlerts,
+        };
+        setSettings(merged);
+        // Also update localStorage to stay in sync
+        try {
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(merged));
+        } catch { /* ignore */ }
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   useEffect(() => {
     if (profile) {
@@ -195,6 +252,14 @@ export default function Profile() {
     setTwoFactorDialogOpen(true);
     setTwoFactorSaving(true);
     try {
+      // Clean up any existing unverified/pending TOTP factors first
+      // (causes "factor already exists" error on repeated enroll attempts)
+      const { data: existing } = await supabase.auth.mfa.listFactors();
+      const pendingFactors = existing?.totp?.filter((f) => f.status !== "verified") ?? [];
+      for (const f of pendingFactors) {
+        await supabase.auth.mfa.unenroll({ factorId: f.id });
+      }
+
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: "totp",
         friendlyName: "SafeHaven Authenticator",
@@ -574,7 +639,7 @@ export default function Profile() {
                   </div>
                   <Switch
                     checked={settings.notifications}
-                    onCheckedChange={(checked) => setSettings({ ...settings, notifications: checked })}
+                    onCheckedChange={(checked) => updateSetting("notifications", checked)}
                   />
                 </div>
                 <Separator />
@@ -585,7 +650,7 @@ export default function Profile() {
                   </div>
                   <Switch
                     checked={settings.emergencyAlerts}
-                    onCheckedChange={(checked) => setSettings({ ...settings, emergencyAlerts: checked })}
+                    onCheckedChange={(checked) => updateSetting("emergencyAlerts", checked)}
                   />
                 </div>
               </div>
@@ -604,7 +669,7 @@ export default function Profile() {
                   </div>
                   <Switch
                     checked={settings.locationSharing}
-                    onCheckedChange={(checked) => setSettings({ ...settings, locationSharing: checked })}
+                    onCheckedChange={(checked) => updateSetting("locationSharing", checked)}
                   />
                 </div>
                 <Separator />
@@ -615,7 +680,7 @@ export default function Profile() {
                   </div>
                   <Switch
                     checked={settings.aiMonitoring}
-                    onCheckedChange={(checked) => setSettings({ ...settings, aiMonitoring: checked })}
+                    onCheckedChange={(checked) => updateSetting("aiMonitoring", checked)}
                   />
                 </div>
                 <Separator />
@@ -626,7 +691,7 @@ export default function Profile() {
                   </div>
                   <Switch
                     checked={settings.dataCollection}
-                    onCheckedChange={(checked) => setSettings({ ...settings, dataCollection: checked })}
+                    onCheckedChange={(checked) => updateSetting("dataCollection", checked)}
                   />
                 </div>
               </div>

@@ -25,10 +25,139 @@ export function StealthCalculator() {
   const { stealthActive, disableStealth } = useStealth();
   const { toast } = useToast();
 
-  const [display, setDisplay] = useState('0');
-  const [previous, setPrevious] = useState<number | null>(null);
-  const [operator, setOperator] = useState<string | null>(null);
-  const [waitingForOperand, setWaitingForOperand] = useState(false);
+  // ---- Calculator state ----
+  // We track: current display value, the stored operand, the pending operator,
+  // and whether the next digit press should start a fresh number.
+  const [display, setDisplay]               = useState('0');
+  const [storedValue, setStoredValue]       = useState<number | null>(null);
+  const [pendingOp, setPendingOp]           = useState<string | null>(null);
+  const [freshEntry, setFreshEntry]         = useState(false);   // next digit starts new number
+  const [justEvaled, setJustEvaled]         = useState(false);  // = was just pressed
+
+  useEffect(() => {
+    if (!stealthActive) {
+      setDisplay('0');
+      setStoredValue(null);
+      setPendingOp(null);
+      setFreshEntry(false);
+      setJustEvaled(false);
+    }
+  }, [stealthActive]);
+
+  if (!stealthActive) return null;
+
+  // ---- Arithmetic ----
+  const applyOp = (a: number, b: number, op: string): number => {
+    switch (op) {
+      case '+': return a + b;
+      case '−': return a - b;
+      case '×': return a * b;
+      case '÷': return b === 0 ? NaN : a / b;
+      default:  return b;
+    }
+  };
+
+  /** Format a number for display — avoid floating-point noise */
+  const fmt = (n: number): string => {
+    if (!isFinite(n)) return n === Infinity ? '∞' : 'Error';
+    // Round to 10 significant figures to kill floating-point noise
+    const rounded = parseFloat(n.toPrecision(10));
+    // Show up to 9 decimal places but strip trailing zeros
+    return String(rounded);
+  };
+
+  // ---- Button handlers ----
+  const inputDigit = (d: string) => {
+    if (freshEntry || justEvaled) {
+      setDisplay(d);
+      setFreshEntry(false);
+      setJustEvaled(false);
+    } else {
+      // Max 12 visible digits
+      if (display.replace(/[^0-9]/g, '').length >= 12) return;
+      setDisplay(display === '0' ? d : display + d);
+    }
+  };
+
+  const inputDot = () => {
+    if (freshEntry || justEvaled) {
+      setDisplay('0.');
+      setFreshEntry(false);
+      setJustEvaled(false);
+      return;
+    }
+    if (!display.includes('.')) setDisplay(display + '.');
+  };
+
+  const inputBackspace = () => {
+    if (freshEntry || justEvaled || display.length === 1) {
+      setDisplay('0');
+      return;
+    }
+    const next = display.slice(0, -1);
+    setDisplay(next === '-' || next === '' ? '0' : next);
+  };
+
+  const clearAll = () => {
+    setDisplay('0');
+    setStoredValue(null);
+    setPendingOp(null);
+    setFreshEntry(false);
+    setJustEvaled(false);
+  };
+
+  const toggleSign = () => {
+    if (display === '0') return;
+    setDisplay(display.startsWith('-') ? display.slice(1) : '-' + display);
+  };
+
+  const percent = () => {
+    const v = parseFloat(display);
+    // If there's a stored value + pending op, % means (stored * v / 100)
+    const result = storedValue !== null && (pendingOp === '+' || pendingOp === '−')
+      ? (storedValue * v) / 100
+      : v / 100;
+    setDisplay(fmt(result));
+    setFreshEntry(true);
+  };
+
+  /**
+   * Called when the user presses an operator key (+, −, ×, ÷).
+   * If there is already a pending operation and a stored value,
+   * evaluate it first (chained operations: 3 + 4 × ...).
+   */
+  const pressOperator = (op: string) => {
+    const current = parseFloat(display);
+
+    if (storedValue !== null && pendingOp !== null && !freshEntry) {
+      // Chain: evaluate the pending operation first
+      const result = applyOp(storedValue, current, pendingOp);
+      setDisplay(fmt(result));
+      setStoredValue(result);
+    } else {
+      setStoredValue(current);
+    }
+
+    setPendingOp(op);
+    setFreshEntry(true);
+    setJustEvaled(false);
+  };
+
+  /**
+   * Called when the user taps "=".
+   * Evaluates the pending operation and shows the result.
+   */
+  const equalsTap = () => {
+    if (pendingOp === null || storedValue === null) return;
+    const current = parseFloat(display);
+    const result = applyOp(storedValue, current, pendingOp);
+    setDisplay(fmt(result));
+    // Don't clear pendingOp/storedValue so repeated = repeats the last op
+    setStoredValue(result);
+    setPendingOp(null);
+    setFreshEntry(false);
+    setJustEvaled(true);
+  };
 
   // Long-press tracking
   const holdTimer = useRef<number | null>(null);
@@ -124,7 +253,10 @@ export function StealthCalculator() {
   };
 
   // ---- Long-press on "=" to exit stealth ----
+  const holdCompleted = useRef(false);
+
   const startHold = () => {
+    holdCompleted.current = false;
     holdStart.current = Date.now();
     setHoldProgress(0);
     progressTimer.current = window.setInterval(() => {
@@ -132,7 +264,8 @@ export function StealthCalculator() {
       setHoldProgress(pct);
     }, 30);
     holdTimer.current = window.setTimeout(async () => {
-      cancelHold(false);
+      holdCompleted.current = true;
+      cancelHold();
       // Long-press fired — attempt to exit
       const { data } = await supabase.auth.getSession();
       if (data.session) {
@@ -140,27 +273,30 @@ export function StealthCalculator() {
         document.title = 'SafeHaven';
         toast({ title: 'Welcome back', description: 'Stealth mode disabled.' });
       } else {
-        // Session expired — require password re-auth
         setAuthError(null);
         setAuthOpen(true);
       }
     }, HOLD_MS);
   };
 
-  const cancelHold = (didTap: boolean) => {
+  const cancelHold = () => {
     if (holdTimer.current) {
       window.clearTimeout(holdTimer.current);
       holdTimer.current = null;
-      // Released before the threshold — treat as a normal "=" tap
-      if (didTap && Date.now() - holdStart.current < HOLD_MS) {
-        equalsTap();
-      }
     }
     if (progressTimer.current) {
       window.clearInterval(progressTimer.current);
       progressTimer.current = null;
     }
     setHoldProgress(0);
+  };
+
+  const handleEqualsPointerUp = () => {
+    const wasShortPress = !holdCompleted.current;
+    cancelHold();
+    if (wasShortPress) {
+      equalsTap();
+    }
   };
 
   const handleReauth = async () => {
@@ -231,22 +367,22 @@ export function StealthCalculator() {
         <Btn variant="fn" onClick={clearAll}>AC</Btn>
         <Btn variant="fn" onClick={toggleSign}>+/−</Btn>
         <Btn variant="fn" onClick={percent}>%</Btn>
-        <Btn variant="op" onClick={() => performOperator('÷')}>÷</Btn>
+        <Btn variant="op" onClick={() => pressOperator('÷')}>÷</Btn>
 
         <Btn onClick={() => inputDigit('7')}>7</Btn>
         <Btn onClick={() => inputDigit('8')}>8</Btn>
         <Btn onClick={() => inputDigit('9')}>9</Btn>
-        <Btn variant="op" onClick={() => performOperator('×')}>×</Btn>
+        <Btn variant="op" onClick={() => pressOperator('×')}>×</Btn>
 
         <Btn onClick={() => inputDigit('4')}>4</Btn>
         <Btn onClick={() => inputDigit('5')}>5</Btn>
         <Btn onClick={() => inputDigit('6')}>6</Btn>
-        <Btn variant="op" onClick={() => performOperator('−')}>−</Btn>
+        <Btn variant="op" onClick={() => pressOperator('−')}>−</Btn>
 
         <Btn onClick={() => inputDigit('1')}>1</Btn>
         <Btn onClick={() => inputDigit('2')}>2</Btn>
         <Btn onClick={() => inputDigit('3')}>3</Btn>
-        <Btn variant="op" onClick={() => performOperator('+')}>+</Btn>
+        <Btn variant="op" onClick={() => pressOperator('+')}>+</Btn>
 
         <Btn wide onClick={() => inputDigit('0')}>0</Btn>
         <Btn onClick={inputDot}>.</Btn>
@@ -254,9 +390,9 @@ export function StealthCalculator() {
         {/* "=" with long-press to exit stealth */}
         <button
           onPointerDown={startHold}
-          onPointerUp={() => cancelHold(true)}
-          onPointerLeave={() => cancelHold(false)}
-          onPointerCancel={() => cancelHold(false)}
+          onPointerUp={handleEqualsPointerUp}
+          onPointerLeave={() => cancelHold()}
+          onPointerCancel={() => cancelHold()}
           className="relative h-16 rounded-full text-2xl font-medium bg-orange-500 text-white hover:bg-orange-400 transition active:scale-95 select-none overflow-hidden"
           aria-label="Equals. Hold for 2 seconds to exit calculator."
         >
