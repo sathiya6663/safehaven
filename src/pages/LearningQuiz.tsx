@@ -109,17 +109,20 @@ export default function LearningQuiz() {
       };
 
       if (existing?.id) {
-        await supabase.from("learning_progress").update(payload).eq("id", existing.id);
+        const { error } = await supabase.from("learning_progress").update(payload).eq("id", existing.id);
+        if (error) throw error;
       } else {
-        await supabase.from("learning_progress").insert(payload);
+        const { error } = await supabase.from("learning_progress").insert(payload);
+        if (error) throw error;
       }
 
       toast({
         title: "Score saved!",
         description: `${quiz.title}: ${finalScore}%${isBetter && existing?.quiz_score ? " — new personal best!" : ""}`,
       });
-    } catch {
-      toast({ title: "Couldn't save score", variant: "destructive" });
+    } catch (err) {
+      console.error("saveQuizResult error:", err);
+      toast({ title: "Couldn't save score", description: String(err), variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -127,8 +130,7 @@ export default function LearningQuiz() {
 
   const handleSubmit = () => {
     const correct = currentQ.options.find((o) => o.id === selectedAnswer)?.correct ?? false;
-    const newScore = correct ? score + 1 : score;
-    if (correct) setScore(newScore);
+    if (correct) setScore((s) => s + 1);
     setAnswers((prev) => [...prev, correct]);
     setShowResult(true);
   };
@@ -139,14 +141,19 @@ export default function LearningQuiz() {
       setSelectedAnswer("");
       setShowResult(false);
     } else {
-      // Last question — compute final score and save
-      const finalScore = Math.round((score / questions.length) * 100);
+      // Last question — use answers array to compute final score reliably
+      // (don't rely on state score which may be stale due to async setState)
+      const lastCorrect = currentQ.options.find((o) => o.id === selectedAnswer)?.correct ?? false;
+      const allAnswers = [...answers, lastCorrect];
+      const correctCount = allAnswers.filter(Boolean).length;
+      const computedScore = Math.round((correctCount / questions.length) * 100);
       setIsComplete(true);
-      await saveQuizResult(finalScore);
+      await saveQuizResult(computedScore);
     }
   };
 
-  const finalScore = Math.round((score / questions.length) * 100);
+  // finalScore derived from answers array (not stale score state)
+  const finalScore = Math.round((answers.filter(Boolean).length / questions.length) * 100);
 
   // ── Completion screen ─────────────────────────────────────────────────────
   if (isComplete) {

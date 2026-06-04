@@ -95,9 +95,11 @@ export default function LearningStory() {
     };
 
     if (existing?.id) {
-      await supabase.from("learning_progress").update(payload).eq("id", existing.id);
+      const { error } = await supabase.from("learning_progress").update(payload).eq("id", existing.id);
+      if (error) { console.error("saveProgress update error:", error); throw error; }
     } else {
-      await supabase.from("learning_progress").insert(payload);
+      const { error } = await supabase.from("learning_progress").insert(payload);
+      if (error) { console.error("saveProgress insert error:", error); throw error; }
     }
   };
 
@@ -154,12 +156,15 @@ export default function LearningStory() {
   const handleComplete = async () => {
     setSaving(true);
     try {
+      // Ensure completion is persisted (covers edge case where
+      // the save in handleChoice failed silently)
       await saveProgress(scenes.length - 1, true, earnedXP);
-      toast({ title: "Progress saved!", description: `${story.title} marked as complete. +${earnedXP} XP` });
-    } catch {
-      toast({ title: "Couldn't save progress", variant: "destructive" });
+    } catch (err) {
+      console.error("handleComplete save error:", err);
+      toast({ title: "Couldn't save progress", description: String(err), variant: "destructive" });
     } finally {
       setSaving(false);
+      toast({ title: "Story complete!", description: `+100 XP added to your profile.` });
       navigate("/learning");
     }
   };
