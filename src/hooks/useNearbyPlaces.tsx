@@ -86,21 +86,15 @@ out center;`;
 
 /**
  * Fetch Overpass data.
- * - Production (Vercel): calls /api/overpass proxy first (avoids CORS),
- *   falls back to direct mirrors if proxy fails.
- * - Development: calls mirrors directly.
+ * - Production (Vercel): ONLY calls /api/overpass proxy — never hits external
+ *   APIs directly from the browser (would be CORS-blocked).
+ * - Development: calls mirrors directly (no proxy needed on localhost).
  */
 async function fetchOverpass(query: string): Promise<OverpassResponse> {
-  const MIRRORS = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-  ];
-
-  // Try Vercel proxy first in production
+  // Production — proxy only, no browser fallback to external URLs
   if (import.meta.env.PROD) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 25_000);
+    const timer = setTimeout(() => controller.abort(), 30_000);
     try {
       const res = await fetch('/api/overpass', {
         method: 'POST',
@@ -109,22 +103,30 @@ async function fetchOverpass(query: string): Promise<OverpassResponse> {
         signal: controller.signal,
       });
       clearTimeout(timer);
-      if (res.ok) {
-        const data = await res.json();
-        // Verify it's actually an Overpass response (not HTML fallback)
-        if (data && Array.isArray(data.elements)) {
-          return data as OverpassResponse;
-        }
+      if (!res.ok) {
+        const errText = await res.text().catch(() => res.statusText);
+        throw new Error(`Proxy error ${res.status}: ${errText}`);
       }
-    } catch (_) {
+      const data = await res.json();
+      if (!data || !Array.isArray(data.elements)) {
+        throw new Error('Proxy returned unexpected response');
+      }
+      return data as OverpassResponse;
+    } catch (err) {
       clearTimeout(timer);
-      // proxy failed — fall through to direct mirrors below
+      throw err instanceof Error ? err : new Error(String(err));
     }
   }
 
-  // Direct mirrors (dev always, prod as fallback)
+  // Development — direct mirrors (no CORS issue on localhost)
+  const DEV_MIRRORS = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  ];
+
   let lastErr: Error = new Error('All Overpass mirrors failed');
-  for (const endpoint of MIRRORS) {
+  for (const endpoint of DEV_MIRRORS) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20_000);
     try {

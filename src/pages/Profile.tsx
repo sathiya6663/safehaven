@@ -227,7 +227,136 @@ export default function Profile() {
     toast({ title: "Password updated" });
   };
 
-  // ── 2FA: check current status on mount ─────────────────────────────────
+  // ── Guardian invitation state ──────────────────────────────────────────────
+  const [guardianDialogOpen, setGuardianDialogOpen]     = useState(false);
+  const [guardianEmail, setGuardianEmail]               = useState("");
+  const [guardianSending, setGuardianSending]           = useState(false);
+  const [guardianLinks, setGuardianLinks]               = useState<{
+    id: string; guardian_name: string; guardian_email: string; status: string; created_at: string;
+  }[]>([]);
+
+  // Load existing guardian links for this user (as child)
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data: links } = await supabase
+        .from("guardian_child_links")
+        .select("id, guardian_id, status, created_at")
+        .eq("child_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (!links || links.length === 0) { setGuardianLinks([]); return; }
+
+      const guardianIds = links.map((l) => l.guardian_id);
+      const { data: gProfiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", guardianIds);
+
+      setGuardianLinks(
+        links.map((l) => {
+          const p = gProfiles?.find((x) => x.user_id === l.guardian_id);
+          return {
+            id: l.id,
+            guardian_name: p?.full_name || p?.email || "Unknown",
+            guardian_email: p?.email || "",
+            status: l.status,
+            created_at: l.created_at ?? "",
+          };
+        })
+      );
+    })();
+  }, [user]);
+
+  const handleSendGuardianInvitation = async () => {
+    if (!user || !guardianEmail.trim()) return;
+    setGuardianSending(true);
+
+    // 1. Look up the guardian by email in profiles
+    const { data: guardianProfile } = await supabase
+      .from("profiles")
+      .select("user_id, full_name, email, user_type")
+      .eq("email", guardianEmail.trim().toLowerCase())
+      .maybeSingle();
+
+    if (!guardianProfile) {
+      toast({
+        title: "User not found",
+        description: "No SafeHaven account with that email address.",
+        variant: "destructive",
+      });
+      setGuardianSending(false);
+      return;
+    }
+
+    if (guardianProfile.user_id === user.id) {
+      toast({ title: "You can't invite yourself.", variant: "destructive" });
+      setGuardianSending(false);
+      return;
+    }
+
+    // 2. Check if a link already exists
+    const { data: existing } = await supabase
+      .from("guardian_child_links")
+      .select("id, status")
+      .eq("guardian_id", guardianProfile.user_id)
+      .eq("child_id", user.id)
+      .maybeSingle();
+
+    if (existing) {
+      toast({
+        title: existing.status === "approved" ? "Already linked" : "Invitation already sent",
+        description: `Status: ${existing.status}`,
+        variant: "destructive",
+      });
+      setGuardianSending(false);
+      return;
+    }
+
+    // 3. Create the pending link
+    const { error } = await supabase
+      .from("guardian_child_links")
+      .insert({
+        guardian_id: guardianProfile.user_id,
+        child_id: user.id,
+        status: "pending",
+        permissions: { alerts: true, location: true, progress: true },
+      });
+
+    setGuardianSending(false);
+
+    if (error) {
+      toast({ title: "Failed to send invitation", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({
+      title: "Invitation sent!",
+      description: `${guardianProfile.full_name || guardianEmail} will see it in their Guardian Dashboard.`,
+    });
+    setGuardianEmail("");
+    setGuardianDialogOpen(false);
+
+    // Refresh links list
+    const newLink = {
+      id: Date.now().toString(),
+      guardian_name: guardianProfile.full_name || guardianProfile.email || "Guardian",
+      guardian_email: guardianProfile.email || "",
+      status: "pending",
+      created_at: new Date().toISOString(),
+    };
+    setGuardianLinks((prev) => [newLink, ...prev]);
+  };
+
+  const handleRevokeGuardian = async (linkId: string) => {
+    const { error } = await supabase.from("guardian_child_links").delete().eq("id", linkId);
+    if (error) {
+      toast({ title: "Couldn't remove guardian", description: error.message, variant: "destructive" });
+      return;
+    }
+    setGuardianLinks((prev) => prev.filter((l) => l.id !== linkId));
+    toast({ title: "Guardian access removed." });
+  };
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -772,17 +901,51 @@ export default function Profile() {
             </Card>
 
             <Card className="p-5">
-              <h3 className="font-heading font-semibold mb-4 flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Guardian Access
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-heading font-semibold flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Guardian Access
+                </h3>
+                <Button size="sm" onClick={() => setGuardianDialogOpen(true)}>
+                  <Mail className="mr-2 h-4 w-4" />
+                  Invite Guardian
+                </Button>
+              </div>
               <p className="text-sm text-muted-foreground mb-4">
-                Link your account with a guardian for additional safety oversight
+                A guardian can monitor your safety alerts, location and progress.
               </p>
-              <Button variant="outline" className="w-full">
-                <Mail className="mr-2 h-4 w-4" />
-                Send Guardian Invitation
-              </Button>
+
+              {guardianLinks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No guardian linked yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {guardianLinks.map((link) => (
+                    <div key={link.id} className="flex items-center justify-between p-3 rounded-lg border">
+                      <div>
+                        <p className="font-medium text-sm">{link.guardian_name}</p>
+                        <p className="text-xs text-muted-foreground">{link.guardian_email}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          link.status === "approved"
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                            : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                        }`}>
+                          {link.status === "approved" ? "Active" : "Pending"}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive h-7 px-2"
+                          onClick={() => handleRevokeGuardian(link.id)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
 
             <Card className="p-5 bg-emergency/5 border-emergency/20">
