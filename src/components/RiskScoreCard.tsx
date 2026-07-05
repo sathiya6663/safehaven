@@ -1,39 +1,38 @@
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { Shield, ShieldAlert, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Shield, ShieldAlert, ShieldCheck, RefreshCw, Info } from 'lucide-react';
 import { useRiskScore } from '@/hooks/useRiskScore';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+
+// Score: 0=safe → 100=danger
+const LEVEL_CONFIG = {
+  safe:    { icon: ShieldCheck, tone: 'border-green-500/30 bg-green-500/5',   text: 'text-green-600 dark:text-green-400',  label: 'SAFE',    bar: 'bg-green-500' },
+  caution: { icon: Shield,      tone: 'border-yellow-500/30 bg-yellow-500/5', text: 'text-yellow-600 dark:text-yellow-400', label: 'CAUTION', bar: 'bg-yellow-500' },
+  danger:  { icon: ShieldAlert, tone: 'border-red-500/30 bg-red-500/5',       text: 'text-red-600 dark:text-red-400',       label: 'HIGH RISK', bar: 'bg-red-500' },
+};
 
 export function RiskScoreCard() {
   const { risk, loading, recompute } = useRiskScore();
   const navigate = useNavigate();
 
-  const Icon = risk?.level === 'safe' ? ShieldCheck : risk?.level === 'caution' ? Shield : ShieldAlert;
-
-  const tone =
-    risk?.level === 'safe'
-      ? 'border-primary/30 bg-primary/5'
-      : risk?.level === 'caution'
-      ? 'border-accent/30 bg-accent/5'
-      : 'border-destructive/30 bg-destructive/5';
-
-  const iconTone =
-    risk?.level === 'safe' ? 'text-primary' : risk?.level === 'caution' ? 'text-accent' : 'text-destructive';
+  const cfg   = risk ? LEVEL_CONFIG[risk.level] : LEVEL_CONFIG.safe;
+  const Icon  = cfg.icon;
 
   return (
-    <Card className={cn('p-5 transition-colors', tone)}>
+    <Card className={cn('p-5 transition-colors', risk ? cfg.tone : 'border-muted')}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Icon className={cn('h-5 w-5', iconTone)} aria-hidden="true" />
+          <Icon className={cn('h-5 w-5', risk ? cfg.text : 'text-muted-foreground')} aria-hidden />
           <h3 className="font-heading font-semibold">Live Risk Score</h3>
         </div>
         <button
           onClick={recompute}
           disabled={loading}
           aria-label="Recalculate risk score"
-          className="text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground disabled:opacity-50"
         >
           <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
         </button>
@@ -41,21 +40,48 @@ export function RiskScoreCard() {
 
       {risk ? (
         <>
+          {/* Score + level */}
           <div className="flex items-baseline gap-2 mb-2">
-            <span className={cn('text-3xl font-bold', iconTone)}>{risk.score}</span>
+            <span className={cn('text-4xl font-bold', cfg.text)}>{risk.score}</span>
             <span className="text-sm text-muted-foreground">/ 100</span>
-            <span className={cn('ml-auto text-xs font-semibold uppercase tracking-wide', iconTone)}>
-              {risk.level}
-            </span>
+            <Badge
+              className={cn('ml-auto text-xs font-bold', cfg.text,
+                risk.level === 'danger'  ? 'bg-red-100 dark:bg-red-900/30' :
+                risk.level === 'caution' ? 'bg-yellow-100 dark:bg-yellow-900/30' :
+                'bg-green-100 dark:bg-green-900/30'
+              )}
+              variant="outline"
+            >
+              {cfg.label}
+            </Badge>
           </div>
-          <Progress value={risk.score} className="h-2 mb-3" />
-          <p className="text-sm mb-3">{risk.message}</p>
+
+          {/* Progress bar — red grows with risk */}
+          <div className="relative h-2 w-full rounded-full bg-muted overflow-hidden mb-3">
+            <div
+              className={cn('h-full rounded-full transition-all duration-700', cfg.bar)}
+              style={{ width: `${risk.score}%` }}
+            />
+          </div>
+
+          {/* Message */}
+          <p className="text-sm mb-2">{risk.message}</p>
+
+          {/* Confidence */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
+            <Info className="h-3 w-3" />
+            <span>{risk.confidenceLabel} • updated {risk.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+
           <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/risk-alert')}>
-            View details
+            View full analysis
           </Button>
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">Calculating your safety status…</p>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          <span>Calculating risk score…</span>
+        </div>
       )}
     </Card>
   );
